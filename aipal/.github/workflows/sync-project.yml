@@ -1,0 +1,66 @@
+name: Sync GitHub Project
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/PRODUCT.md
+      - apps/mobile/pubspec.yaml
+      - .github/project.json
+      - scripts/sync_github_project.py
+      - scripts/bootstrap_github_project.sh
+      - .github/workflows/sync-project.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+
+      - name: Verify PROJECT_SYNC_TOKEN is set
+        env:
+          PROJECT_SYNC_TOKEN: ${{ secrets.PROJECT_SYNC_TOKEN }}
+        run: |
+          if [ -z "$PROJECT_SYNC_TOKEN" ]; then
+            echo "::error::PROJECT_SYNC_TOKEN repository secret is missing"
+            exit 1
+          fi
+
+      - name: Bootstrap and sync PRODUCT.md to GitHub Project
+        env:
+          GITHUB_TOKEN: ${{ secrets.PROJECT_SYNC_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euxo pipefail
+          python3 scripts/sync_github_project.py --bootstrap 2>&1 | tee sync.log
+
+      - name: Upload sync log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-project-log
+          path: sync.log
+
+      - name: Commit project.json if bootstrap wrote config
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -f .github/project.json ]; then
+            git add -f .github/project.json
+            if ! git diff --staged --quiet; then
+              git commit -m "chore: update GitHub project sync config [skip ci]"
+              git push origin HEAD:main
+            fi
+          else
+            echo "::warning::.github/project.json not found; skipping commit"
+          fi

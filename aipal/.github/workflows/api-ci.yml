@@ -1,0 +1,26 @@
+name: API CI
+
+on:
+  push:
+    paths: ['apps/api/**', '.github/workflows/api-ci.yml']
+  pull_request:
+    paths: ['apps/api/**']
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          cd apps/api
+          python -m pip install -r requirements.txt
+      - name: Ruff
+        run: pip install ruff && ruff check apps/api/app
+      - name: Pytest
+        run: |
+          cd apps/api
+          pytest -q
