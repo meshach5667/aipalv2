@@ -1,0 +1,16 @@
+# Litestream configuration for continuous SQLite WAL replication to S3-compatible storage
+# See https://litestream.io/reference/config/ for documentation
+
+dbs:
+  - path: /var/lib/aipal/app.db
+    replicas:
+      - type: s3
+        bucket: ${LITESTREAM_S3_BUCKET}
+        path: backups/aipal-db
+        endpoint: ${LITESTREAM_S3_ENDPOINT}
+        region: ${LITESTREAM_S3_REGION}
+        access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
+        secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
+        sync-interval: 1s
+        snapshot-interval: 1h
+        retention: 72h

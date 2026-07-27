@@ -1,0 +1,188 @@
+import json
+import logging
+from collections.abc import AsyncIterator
+
+import httpx
+
+from .companion_constitution import VOICE_COMPANION_SYSTEM_PROMPT
+from .config import get_settings
+
+log = logging.getLogger("aipal.llm")
+settings = get_settings()
+
+SYSTEM_PROMPT = VOICE_COMPANION_SYSTEM_PROMPT
+
+VOICE_STREAM_PROMPT_SUFFIX = (
+    " Reply in plain spoken language first. If planning JSON is requested in the user message, "
+    "append it only after your spoken reply inside a ```json fenced block."
+)
+
+
+async def llm_chat(messages: list[dict[str, str]]) -> str:
+    provider = settings.llm_provider.lower()
+    try:
+        if provider in {"openai", "openai_compatible"} and settings.openai_api_key:
+            return await _openai_chat(messages)
+        if provider == "deepseek" and settings.deepseek_api_key:
+            return await _deepseek_chat(messages)
+        return await _ollama_chat(messages)
+    except (httpx.HTTPError, OSError) as exc:
+        log.warning("LLM provider unavailable; using local fallback reply: %s", exc)
+        return _fallback_reply(messages)
+
+
+async def llm_chat_stream(messages: list[dict[str, str]]) -> AsyncIterator[str]:
+    provider = settings.llm_provider.lower()
+    try:
+        if provider in {"openai", "openai_compatible"} and settings.openai_api_key:
+            async for chunk in _openai_chat_stream(messages):
+                yield chunk
+            return
+        if provider == "deepseek" and settings.deepseek_api_key:
+            async for chunk in _deepseek_chat_stream(messages):
+                yield chunk
+            return
+        text = await _ollama_chat(messages)
+    except (httpx.HTTPError, OSError) as exc:
+        log.warning("Streaming LLM provider unavailable; using local fallback reply: %s", exc)
+        text = _fallback_reply(messages)
+    yield text
+
+
+async def _deepseek_chat(messages: list[dict[str, str]]) -> str:
+    async with httpx.AsyncClient(timeout=settings.deepseek_timeout_seconds) as client:
+        resp = await client.post(
+            "https://api.deepseek.com/chat/completions",
+            headers={"Authorization": f"Bearer {settings.deepseek_api_key}"},
+            json={
+                "model": "deepseek-chat",
+                "messages": _with_default_system(messages),
+                "max_tokens": settings.deepseek_max_tokens,
+                "temperature": 0.25,
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"]
+
+
+async def _deepseek_chat_stream(messages: list[dict[str, str]]) -> AsyncIterator[str]:
+    async with httpx.AsyncClient(timeout=settings.deepseek_timeout_seconds) as client:
+        async with client.stream(
+            "POST",
+            "https://api.deepseek.com/chat/completions",
+            headers={"Authorization": f"Bearer {settings.deepseek_api_key}"},
+            json={
+                "model": "deepseek-chat",
+                "messages": _with_default_system(messages, suffix=VOICE_STREAM_PROMPT_SUFFIX),
+                "max_tokens": settings.deepseek_max_tokens,
+                "temperature": 0.25,
+                "stream": True,
+            },
+        ) as resp:
+            resp.raise_for_status()
+            async for line in resp.aiter_lines():
+                if not line.startswith("data: "):
+                    continue
+                payload = line[6:].strip()
+                if payload == "[DONE]":
+                    break
+                try:
+                    data = json.loads(payload)
+                    delta = data["choices"][0].get("delta", {}).get("content")
+                    if delta:
+                        yield delta
+                except (json.JSONDecodeError, KeyError, IndexError):
+                    continue
+
+
+async def _openai_chat(messages: list[dict[str, str]]) -> str:
+    async with httpx.AsyncClient(timeout=settings.openai_timeout_seconds) as client:
+        resp = await client.post(
+            f"{settings.openai_base_url.rstrip('/')}/chat/completions",
+            headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+            json={
+                "model": settings.openai_model,
+                "messages": _with_default_system(messages),
+                "max_tokens": settings.openai_max_tokens,
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"]
+
+
+async def _openai_chat_stream(messages: list[dict[str, str]]) -> AsyncIterator[str]:
+    async with httpx.AsyncClient(timeout=settings.openai_timeout_seconds) as client:
+        async with client.stream(
+            "POST",
+            f"{settings.openai_base_url.rstrip('/')}/chat/completions",
+            headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+            json={
+                "model": settings.openai_model,
+                "messages": _with_default_system(messages, suffix=VOICE_STREAM_PROMPT_SUFFIX),
+                "max_tokens": settings.openai_max_tokens,
+                "stream": True,
+            },
+        ) as resp:
+            resp.raise_for_status()
+            async for line in resp.aiter_lines():
+                if not line.startswith("data: "):
+                    continue
+                payload = line[6:].strip()
+                if payload == "[DONE]":
+                    break
+                try:
+                    data = json.loads(payload)
+                    delta = data["choices"][0].get("delta", {}).get("content")
+                    if delta:
+                        yield delta
+                except (json.JSONDecodeError, KeyError, IndexError):
+                    continue
+
+
+async def llm_chat_json(messages: list[dict[str, str]]) -> dict:
+    import re
+
+    text = await llm_chat(messages)
+    text = text.strip()
+    if m := re.search(r"\{[\s\S]*\}", text):
+        text = m.group(0)
+    return json.loads(text)
+
+
+async def _ollama_chat(messages: list[dict[str, str]]) -> str:
+    async with httpx.AsyncClient(timeout=settings.ollama_timeout_seconds) as client:
+        resp = await client.post(
+            f"{settings.ollama_base_url}/api/chat",
+            json={
+                "model": settings.ollama_model,
+                "messages": _with_default_system(messages),
+                "stream": False,
+                "options": {
+                    "num_predict": max(48, settings.ollama_num_predict),
+                    "temperature": settings.ollama_temperature,
+                },
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()["message"]["content"]
+
+
+def _with_default_system(messages: list[dict[str, str]], *, suffix: str = "") -> list[dict[str, str]]:
+    if any(message.get("role") == "system" for message in messages):
+        return messages
+    return [{"role": "system", "content": SYSTEM_PROMPT + suffix}, *messages]
+
+
+def _fallback_reply(messages: list[dict[str, str]]) -> str:
+    user_text = ""
+    for message in reversed(messages):
+        if message.get("role") == "user":
+            user_text = (message.get("content") or "").strip()
+            break
+    if "[Context:" in user_text or "[State:" in user_text:
+        user_text = user_text.rsplit("]\n\n", 1)[-1].strip()
+    if not user_text:
+        return "I am here with you. Tell me what is on your mind, and we can think it through together."
+    if "?" in user_text:
+        return "I hear the question. I can still help you reason through it, but my deeper AI connection is offline right now. What matters most about this decision?"
+    return "I hear you. My deeper AI connection is offline right now, but I am still here with you. Say a little more, and we can keep working through it."
