@@ -57,7 +57,9 @@ async def test_today_agenda_groups_tasks_meetings_focus_and_completed():
 async def test_snooze_and_reschedule_sync_linked_task():
     client, headers, user_id = await _authed("stage2-reschedule@example.com")
     try:
-        original = datetime.now(UTC) + timedelta(hours=1)
+        today = datetime.now(UTC).date()
+        now = datetime.combine(today, datetime.min.time(), tzinfo=UTC).replace(hour=8)
+        original = now + timedelta(hours=1)
         created = await client.post(
             "/api/v2/tasks",
             headers=headers,
