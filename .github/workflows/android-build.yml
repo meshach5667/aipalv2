@@ -1,0 +1,37 @@
+name: Android Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: set up java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: set up flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.16.x'
+          channel: 'stable'
+
+      - name: get dependencies
+        run: cd aipal/apps/mobile && flutter pub get
+
+      - name: build apk
+        run: cd aipal/apps/mobile && flutter build apk --release --dart-define=API_BASE_URL=https://43.160.220.9.sslip.io/api/v2
+
+      - name: upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-release
+          path: aipal/apps/mobile/build/app/outputs/flutter-apk/app-release.apk
