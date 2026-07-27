@@ -54,10 +54,10 @@ async def test_generate_companion_response_includes_core_system_prompt():
 
     assert messages[0]["role"] == "system"
     assert messages[0]["content"] == CORE_COMPANION_SYSTEM_PROMPT
-    assert "You are AiPal." in messages[0]["content"]
-    assert "Understanding comes before planning." in messages[0]["content"]
-    assert "Conversation is the product." in messages[0]["content"]
-    assert "The Brain owns data access" in messages[0]["content"]
+    assert "You are the Companion" in messages[0]["content"]
+    assert "Core Responsibilities" in messages[0]["content"]
+    assert "7. Privacy, Security & UX Principles" in messages[0]["content"]
+    assert "Your ultimate goal is to reduce cognitive load" in messages[0]["content"]
     assert "Life context narrative:" in messages[1]["content"]
     assert "Respond with ONLY the user-facing spoken reply" in messages[1]["content"]
     assert "Do not output JSON" in messages[1]["content"]
