@@ -452,7 +452,7 @@ async def _run_turn_impl(
         profile = profile_snapshot(user, profile_row)
         preferences = await get_or_create_preferences(db, user.id)
         goals = await list_active_goals(db, user.id)
-        recent_summary = await summarize_recent_conversations(db, user.id, limit=6)
+        recent_summary = await summarize_recent_conversations(db, user.id, limit=6) if source != "text" else ""
         relationship_rows = await relationship_context(db, user.id, limit=4)
         due_followups = await list_due_followups(db, user.id, limit=4)
         due_commitments = await list_due_commitments(db, user.id)
@@ -465,7 +465,7 @@ async def _run_turn_impl(
             db,
             user.id,
             text,
-            limit=8,
+            limit=4 if source == "text" else 8,
             goal_titles=[goal.title for goal in goals],
             goal_areas=[goal.life_area for goal in goals if goal.life_area],
             recent_summary=recent_summary,

@@ -117,10 +117,10 @@ class _CompanionScreenState extends State<CompanionScreen> {
     return _homeFuture!;
   }
 
-  void _openTextMode(BuildContext context) {
+  void _openTextMode(BuildContext context, AppState state) {
     Navigator.of(
       context,
-    ).push(MaterialPageRoute(builder: (_) => const TextChatScreen()));
+    ).push(MaterialPageRoute(builder: (_) => TextChatScreen(sessionId: state.companionConversationId)));
   }
 
   @override
@@ -142,7 +142,7 @@ class _CompanionScreenState extends State<CompanionScreen> {
                   status: _statusLabel(live),
                   live: live,
                   onClose: () => unawaited(_handleClose(state)),
-                  onTextMode: () => _openTextMode(context),
+                  onTextMode: () => _openTextMode(context, state),
                 ),
                 Expanded(
                   child: Center(
@@ -184,8 +184,8 @@ class _CompanionScreenState extends State<CompanionScreen> {
                   live: live,
                   helperText: _helperText(state, live),
                   onMicTap: () => unawaited(state.toggleLive()),
-                  onKeyboardTap: () => _openTextMode(context),
-                  onComposerTap: () => _openTextMode(context),
+                  onKeyboardTap: () => _openTextMode(context, state),
+                  onComposerTap: () => _openTextMode(context, state),
                 ),
               ],
             ),
