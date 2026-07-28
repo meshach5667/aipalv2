@@ -248,14 +248,14 @@ class _SoftBackground extends StatelessWidget {
       children: [
         Positioned(
           top: 120,
-          left: -160,
+          left: MediaQuery.sizeOf(context).width > 600 ? -160 : -220,
           child: _BlurBlob(
             color: const Color(0xFFB7ECEC).withValues(alpha: 0.45),
           ),
         ),
         Positioned(
           bottom: 90,
-          right: -160,
+          right: MediaQuery.sizeOf(context).width > 600 ? -160 : -220,
           child: _BlurBlob(
             color: const Color(0xFFDFB9F2).withValues(alpha: 0.35),
           ),
@@ -297,7 +297,7 @@ class _GlassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(40),
+      padding: EdgeInsets.all(MediaQuery.sizeOf(context).width > 600 ? 40 : 24),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.42),
         borderRadius: BorderRadius.circular(32),
