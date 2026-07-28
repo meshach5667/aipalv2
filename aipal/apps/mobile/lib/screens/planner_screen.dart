@@ -50,11 +50,11 @@ class _PlannerScreenState extends State<PlannerScreen> {
         .map((item) => item.cast<String, dynamic>())
         .toList();
     return Scaffold(
-      backgroundColor: const Color(0xFFFAF9F5),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: const Color(0xFF1B1C1A),
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         title: const Text('Planner Engine'),
       ),
       body: Stack(
@@ -93,7 +93,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
                         ).withValues(alpha: 0.16),
                         labelStyle: TextStyle(
                           color: _selected == choice.id
-                              ? const Color(0xFF6F5081)
+                              ? Theme.of(context).colorScheme.primary
                               : const Color(0xFF4B444D),
                           fontWeight: FontWeight.w800,
                         ),
@@ -114,7 +114,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
                     : const Icon(Icons.auto_awesome_rounded),
                 label: const Text('Generate Draft'),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF6F5081),
+                  backgroundColor: Theme.of(context).colorScheme.primary,
                   foregroundColor: Colors.white,
                   minimumSize: const Size.fromHeight(52),
                 ),
@@ -170,8 +170,8 @@ class _DraftPanel extends StatelessWidget {
         children: [
           Text(
             intent.replaceAll('_', ' ').toUpperCase(),
-            style: const TextStyle(
-              color: Color(0xFF326667),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.secondary,
               fontSize: 12,
               fontWeight: FontWeight.w900,
               letterSpacing: 1.1,
@@ -185,7 +185,7 @@ class _DraftPanel extends StatelessWidget {
             icon: const Icon(Icons.check_rounded),
             label: const Text('Confirm and add to Today'),
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF326667),
+              backgroundColor: Theme.of(context).colorScheme.secondary,
               foregroundColor: Colors.white,
               minimumSize: const Size.fromHeight(50),
             ),
@@ -209,19 +209,19 @@ class _DraftTaskTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFFAF9F5).withValues(alpha: 0.76),
+        color: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.76),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFFE6E1E6)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.view_timeline_rounded, color: Color(0xFF6F5081)),
+          Icon(Icons.view_timeline_rounded, color: Theme.of(context).colorScheme.primary),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               title,
-              style: const TextStyle(
-                color: Color(0xFF1B1C1A),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontWeight: FontWeight.w800,
                 height: 1.35,
               ),
@@ -277,8 +277,8 @@ class _PlannerAtmosphere extends StatelessWidget {
             center: Alignment.topRight,
             radius: 1.1,
             colors: [
-              const Color(0xFF326667).withValues(alpha: 0.16),
-              const Color(0xFFFAF9F5).withValues(alpha: 0),
+              Theme.of(context).colorScheme.secondary.withValues(alpha: 0.16),
+              Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0),
             ],
           ),
         ),
