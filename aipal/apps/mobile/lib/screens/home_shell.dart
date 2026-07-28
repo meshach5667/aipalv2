@@ -393,7 +393,7 @@ class _DesktopSidebarState extends State<_DesktopSidebar> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Kelvin',
+                            context.watch<AppState>().profile?['display_name'] ?? context.watch<AppState>().profile?['wake_name'] ?? 'Friend',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w800,
@@ -941,8 +941,8 @@ class _TopHeader extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    title == 'Companion' ? 'Good Afternoon, Kelvin' : title,
-                    style: TextStyle(
+                    title == 'Companion' ? 'Good Afternoon, ${context.watch<AppState>().profile?['display_name'] ?? context.watch<AppState>().profile?['wake_name'] ?? 'Friend'}' : title,
+                    style: const TextStyle(
                       fontFamily: 'Manrope',
                       fontSize: 28,
                       height: 1.15,
