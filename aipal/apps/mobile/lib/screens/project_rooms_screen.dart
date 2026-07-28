@@ -60,11 +60,11 @@ class _ProjectRoomsScreenState extends State<ProjectRoomsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFAF9F5),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: const Color(0xFF1B1C1A),
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         title: const Text('Project Rooms'),
         actions: [
           IconButton(
@@ -133,9 +133,9 @@ class _RoomCard extends StatelessWidget {
             padding: const EdgeInsets.all(18),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.dashboard_customize_rounded,
-                  color: Color(0xFF6F5081),
+                  color: Theme.of(context).colorScheme.primary,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -183,7 +183,7 @@ class _RoomSummary extends StatelessWidget {
         color: const Color(0xFFE7F5F5).withValues(alpha: 0.64),
         borderRadius: BorderRadius.circular(28),
         border: Border.all(
-          color: const Color(0xFF326667).withValues(alpha: 0.14),
+          color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.14),
         ),
       ),
       child: Column(
@@ -201,7 +201,7 @@ class _RoomSummary extends StatelessWidget {
           const SizedBox(height: 12),
           LinearProgressIndicator(
             value: ((summary['progress'] as int? ?? 0) / 100).clamp(0, 1),
-            color: const Color(0xFF326667),
+            color: Theme.of(context).colorScheme.secondary,
             backgroundColor: Colors.white.withValues(alpha: 0.72),
           ),
         ],

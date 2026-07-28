@@ -75,7 +75,7 @@ class AiPalShellScaffold extends StatelessWidget {
         (int index) => context.read<AppState>().goToTab(index);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFAF9F5),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Row(
         children: [
           if (isDesktop && showDesktopSidebar)
@@ -204,7 +204,7 @@ class _DesktopSidebarState extends State<_DesktopSidebar> {
       width: 256,
       height: double.infinity,
       decoration: BoxDecoration(
-        color: const Color(0xFFFAF9F5).withValues(alpha: 0.72),
+        color: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.72),
         border: Border(
           right: BorderSide(color: Colors.white.withValues(alpha: 0.7)),
         ),
@@ -224,7 +224,7 @@ class _DesktopSidebarState extends State<_DesktopSidebar> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'AiPal',
                 style: TextStyle(
                   fontFamily: 'Manrope',
@@ -232,7 +232,7 @@ class _DesktopSidebarState extends State<_DesktopSidebar> {
                   height: 1,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -1.4,
-                  color: Color(0xFF6F5081),
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
               const SizedBox(height: 8),
@@ -376,10 +376,10 @@ class _DesktopSidebarState extends State<_DesktopSidebar> {
                     Container(
                       width: 42,
                       height: 42,
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: LinearGradient(
-                          colors: [Color(0xFF6F5081), Color(0xFF326667)],
+                          colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                         ),
                       ),
                       child: const Icon(
@@ -388,7 +388,7 @@ class _DesktopSidebarState extends State<_DesktopSidebar> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -397,11 +397,11 @@ class _DesktopSidebarState extends State<_DesktopSidebar> {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w800,
-                              color: Color(0xFF1B1C1A),
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
-                          SizedBox(height: 2),
-                          Text(
+                          const SizedBox(height: 2),
+                          const Text(
                             'Premium Plan',
                             style: TextStyle(
                               fontSize: 10,
@@ -458,7 +458,7 @@ class _SidebarItem extends StatelessWidget {
               Icon(
                 icon,
                 color: active
-                    ? const Color(0xFF6F5081)
+                    ? Theme.of(context).colorScheme.primary
                     : const Color(0xFF575C6B),
               ),
               const SizedBox(width: 14),
@@ -468,7 +468,7 @@ class _SidebarItem extends StatelessWidget {
                   fontSize: 14,
                   fontWeight: active ? FontWeight.w800 : FontWeight.w600,
                   color: active
-                      ? const Color(0xFF6F5081)
+                      ? Theme.of(context).colorScheme.primary
                       : const Color(0xFF575C6B),
                 ),
               ),
@@ -506,15 +506,15 @@ class _SidebarAccordion extends StatelessWidget {
           onExpansionChanged: onChanged,
           tilePadding: EdgeInsets.zero,
           childrenPadding: const EdgeInsets.only(top: 10),
-          collapsedIconColor: const Color(0xFF6F5081),
-          iconColor: const Color(0xFF6F5081),
+          collapsedIconColor: Theme.of(context).colorScheme.primary,
+          iconColor: Theme.of(context).colorScheme.primary,
           title: Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.6,
-              color: Color(0xFF1B1C1A),
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           subtitle: Text(
@@ -589,11 +589,11 @@ class _ThreadTile extends StatelessWidget {
             title,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13.5,
               height: 1.3,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF1B1C1A),
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 6),
@@ -657,11 +657,11 @@ class _TaskTile extends StatelessWidget {
                 title,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13.5,
                   height: 1.3,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF1B1C1A),
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 6),
@@ -686,7 +686,7 @@ class _TaskTile extends StatelessWidget {
                       color: const Color(0xFFF4D9FF).withValues(alpha: 0.45),
                       borderRadius: BorderRadius.circular(999),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
@@ -694,14 +694,14 @@ class _TaskTile extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
-                            color: Color(0xFF6F5081),
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
-                        SizedBox(width: 4),
+                        const SizedBox(width: 4),
                         Icon(
                           Icons.chevron_right_rounded,
                           size: 16,
-                          color: Color(0xFF6F5081),
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ],
                     ),
@@ -760,12 +760,12 @@ class _TaskEditorSheet extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 560),
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
         decoration: BoxDecoration(
-          color: const Color(0xFFFAF9F5),
+          color: Theme.of(context).scaffoldBackgroundColor,
           borderRadius: BorderRadius.circular(36),
           border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF6F5081).withValues(alpha: 0.12),
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
               blurRadius: 50,
               offset: const Offset(0, 24),
             ),
@@ -786,14 +786,14 @@ class _TaskEditorSheet extends StatelessWidget {
                   shape: BoxShape.circle,
                   border: Border.all(color: const Color(0xFFE6E1E6)),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.edit_note_rounded,
-                  color: Color(0xFF6F5081),
+                  color: Theme.of(context).colorScheme.primary,
                   size: 28,
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 'Edit Task',
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -801,7 +801,7 @@ class _TaskEditorSheet extends StatelessWidget {
                   fontSize: 28,
                   height: 1.15,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF1B1C1A),
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 8),
@@ -840,7 +840,7 @@ class _TaskEditorSheet extends StatelessWidget {
                 icon: const Icon(Icons.check_rounded, size: 18),
                 label: const Text('Save Changes'),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF6F5081),
+                  backgroundColor: Theme.of(context).colorScheme.primary,
                   foregroundColor: Colors.white,
                   minimumSize: const Size.fromHeight(52),
                   shape: const StadiumBorder(),
@@ -880,13 +880,13 @@ class _EditorInput extends StatelessWidget {
       controller: controller,
       autofocus: autofocus,
       maxLines: maxLines,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 15,
         fontWeight: FontWeight.w600,
-        color: Color(0xFF1B1C1A),
+        color: Theme.of(context).colorScheme.onSurface,
       ),
       decoration: InputDecoration(
-        prefixIcon: Icon(icon, color: const Color(0xFF6F5081)),
+        prefixIcon: Icon(icon, color: Theme.of(context).colorScheme.primary),
         hintText: hint,
         hintStyle: const TextStyle(
           color: Color(0xFF4B444D),
@@ -908,7 +908,7 @@ class _EditorInput extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(maxLines > 1 ? 24 : 999),
-          borderSide: const BorderSide(color: Color(0xFF6F5081), width: 1.8),
+          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.8),
         ),
       ),
     );
@@ -942,13 +942,13 @@ class _TopHeader extends StatelessWidget {
                 children: [
                   Text(
                     title == 'Companion' ? 'Good Afternoon, Kelvin' : title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'Manrope',
                       fontSize: 28,
                       height: 1.15,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.6,
-                      color: Color(0xFF1B1C1A),
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -1020,7 +1020,7 @@ class _MobileBottomNav extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 18),
       decoration: BoxDecoration(
-        color: const Color(0xFFFAF9F5).withValues(alpha: 0.9),
+        color: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.9),
         border: Border(
           top: BorderSide(color: Colors.white.withValues(alpha: 0.7)),
         ),
@@ -1108,7 +1108,7 @@ class _MobileNavItem extends StatelessWidget {
           children: [
             Icon(
               icon,
-              color: active ? const Color(0xFF6F5081) : const Color(0xFF4B444D),
+              color: active ? Theme.of(context).colorScheme.primary : const Color(0xFF4B444D),
             ),
             const SizedBox(height: 3),
             Text(

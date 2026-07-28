@@ -109,28 +109,28 @@ class FocusTimerBarState extends State<FocusTimerBar> {
                                 strokeWidth: 6,
                                 strokeCap: StrokeCap.round,
                                 backgroundColor: const Color(0xFFE3E2DF),
-                                color: const Color(0xFF6F5081),
+                                color: Theme.of(context).colorScheme.primary,
                               ),
                             ),
                             Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(
+                                Icon(
                                   Icons.timer_rounded,
                                   size: 15,
-                                  color: Color(0xFF6F5081),
+                                  color: Theme.of(context).colorScheme.primary,
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
                                   _label,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontFamily: 'Manrope',
                                     fontSize: 14,
                                     fontWeight: FontWeight.w900,
-                                    fontFeatures: [
+                                    fontFeatures: const [
                                       FontFeature.tabularFigures(),
                                     ],
-                                    color: Color(0xFF1B1C1A),
+                                    color: Theme.of(context).colorScheme.onSurface,
                                   ),
                                 ),
                               ],
@@ -164,7 +164,7 @@ class FocusTimerBarState extends State<FocusTimerBar> {
                                   letterSpacing: 1.1,
                                   color: _paused
                                       ? const Color(0xFF575C6B)
-                                      : const Color(0xFF6F5081),
+                                      : Theme.of(context).colorScheme.primary,
                                 ),
                               ),
                             ),
@@ -173,12 +173,12 @@ class FocusTimerBarState extends State<FocusTimerBar> {
                               widget.taskTitle,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontFamily: 'Manrope',
                                 fontSize: 17,
                                 height: 1.25,
                                 fontWeight: FontWeight.w800,
-                                color: Color(0xFF1B1C1A),
+                                color: Theme.of(context).colorScheme.onSurface,
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -204,8 +204,8 @@ class FocusTimerBarState extends State<FocusTimerBar> {
                       value: completed,
                       minHeight: 6,
                       backgroundColor: const Color(0xFFE3E2DF),
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        Color(0xFF6F5081),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Theme.of(context).colorScheme.primary,
                       ),
                     ),
                   ),
@@ -275,8 +275,8 @@ class _FocusActionButton extends StatelessWidget {
       label: Text(label),
       style: FilledButton.styleFrom(
         backgroundColor:
-            filled ? const Color(0xFF6F5081) : const Color(0xFFF4F4F0),
-        foregroundColor: filled ? Colors.white : const Color(0xFF1B1C1A),
+            filled ? Theme.of(context).colorScheme.primary : const Color(0xFFF4F4F0),
+        foregroundColor: filled ? Colors.white : Theme.of(context).colorScheme.onSurface,
         minimumSize: const Size.fromHeight(48),
         shape: const StadiumBorder(),
         textStyle: const TextStyle(
@@ -319,7 +319,7 @@ class _FocusIconButton extends StatelessWidget {
             child: Icon(
               icon,
               size: 21,
-              color: const Color(0xFF6F5081),
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
         ),

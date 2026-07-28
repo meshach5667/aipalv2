@@ -44,14 +44,15 @@ class AipalApp extends StatelessWidget {
       title: 'AiPal',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF0D1117),
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFFE8A838),
-          secondary: Color(0xFF9B7EDE),
-          surface: Color(0xFF161B22),
+        brightness: Brightness.light,
+        scaffoldBackgroundColor: const Color(0xFFFAF9F5),
+        colorScheme: const ColorScheme.light(
+          primary: Color(0xFF6F5081),
+          secondary: Color(0xFF326667),
+          surface: Colors.white,
+          onSurface: Color(0xFF1B1C1A),
         ),
-        textTheme: GoogleFonts.nunitoTextTheme(ThemeData.dark().textTheme),
+        textTheme: GoogleFonts.manropeTextTheme(ThemeData.light().textTheme),
       ),
       home: const SplashScreen(),
     );

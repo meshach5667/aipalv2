@@ -38,17 +38,17 @@ class TodayEmpty extends StatelessWidget {
                       height: 76,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: const LinearGradient(
+                        gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            Color(0xFF6F5081),
-                            Color(0xFF326667),
+                            Theme.of(context).colorScheme.primary,
+                            Theme.of(context).colorScheme.secondary,
                           ],
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF6F5081)
+                            color: Theme.of(context).colorScheme.primary
                                 .withValues(alpha: 0.18),
                             blurRadius: 26,
                             offset: const Offset(0, 12),
@@ -62,7 +62,7 @@ class TodayEmpty extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    const Text(
+                    Text(
                       'Nothing planned yet',
                       textAlign: TextAlign.center,
                       style: TextStyle(
@@ -70,7 +70,7 @@ class TodayEmpty extends StatelessWidget {
                         fontSize: 24,
                         height: 1.2,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF1B1C1A),
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -91,7 +91,7 @@ class TodayEmpty extends StatelessWidget {
                         icon: const Icon(Icons.graphic_eq_rounded),
                         label: const Text('Open Companion'),
                         style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF6F5081),
+                          backgroundColor: Theme.of(context).colorScheme.primary,
                           foregroundColor: Colors.white,
                           minimumSize: const Size.fromHeight(54),
                           shape: const StadiumBorder(),
