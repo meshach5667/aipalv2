@@ -21,20 +21,12 @@ class Settings(BaseSettings):
     gunicorn_workers: int = 4
     gunicorn_bind: str = "0.0.0.0:8102"
 
-    llm_provider: str = "openai"
-    deepseek_api_key: str = ""
-    deepseek_timeout_seconds: float = 120.0
-    deepseek_max_tokens: int = 4096
-    openai_api_key: str = ""
-    openai_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
-    openai_model: str = "gemini-2.0-flash"
-    openai_timeout_seconds: float = 18.0
-    openai_max_tokens: int = 220
-    ollama_base_url: str = "http://127.0.0.1:11434"
-    ollama_model: str = "llama3.2:3b"
-    ollama_num_predict: int = 72
-    ollama_temperature: float = 0.2
-    ollama_timeout_seconds: float = 12.0
+    llm_provider: str = "gemini"
+    gemini_api_key: str = ""
+    gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
+    gemini_model: str = "gemini-2.0-flash"
+    gemini_timeout_seconds: float = 18.0
+    gemini_max_tokens: int = 220
     # "base" is the minimum production default for accent/noise robustness.
     # Use WHISPER_MODEL=tiny only for low-resource local demos.
     whisper_model: str = "base"
