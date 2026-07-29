@@ -194,6 +194,7 @@ class TodayViewResponse(BaseModel):
     up_next: TaskResponse | None = None
     sections: TodaySections
     today_items: list[TodayItemResponse] = Field(default_factory=list)
+    ui: dict = Field(default_factory=dict)
 
 
 class TaskBulkCreate(BaseModel):
@@ -238,6 +239,7 @@ class SuggestDayRequest(BaseModel):
 
 class SuggestDayResponse(BaseModel):
     plan_draft: PlanDraftResponse | None = None
+    notice: str | None = None
 
 
 class TextTurnResponse(BaseModel):

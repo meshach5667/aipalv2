@@ -9,6 +9,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+import httpx
+
 from .config import get_settings
 
 log = logging.getLogger("aipal.tts")
@@ -152,8 +154,9 @@ VOICE_ALIASES = {
 
 def voice_options(provider: str | None = None) -> list[dict[str, object]]:
     """Return stable voice IDs the client can save and preview."""
-    active_provider = (provider or get_settings().tts_provider or "edge").lower()
-    engine = "edge" if active_provider not in {"local", "espeak", "say"} else "local"
+    settings = get_settings()
+    active_provider = (provider or settings.effective_tts_provider or "edge").lower()
+    engine = "local" if active_provider in {"local", "espeak", "say"} else active_provider
     return [
         {
             "id": key,
@@ -163,7 +166,13 @@ def voice_options(provider: str | None = None) -> list[dict[str, object]]:
             "style": str(meta["style"]),
             "tone": str(meta["style"]),
             "provider": engine,
-            "provider_voice_id": str(meta.get("edge") if engine == "edge" else meta.get("say") or meta.get("espeak")),
+            "provider_voice_id": str(
+                settings.effective_fish_voice_id
+                if engine == "fish"
+                else meta.get("edge")
+                if engine == "edge"
+                else meta.get("say") or meta.get("espeak")
+            ),
             "fallback_voice_id": str(meta.get("say") or meta.get("espeak") or "default"),
             "gender_style": "neutral",
             "pitch": str(meta["pitch"]),
@@ -174,8 +183,10 @@ def voice_options(provider: str | None = None) -> list[dict[str, object]]:
             "response_pacing": str(meta["response_pacing"]),
             "sample_preview_label": f"Preview {meta['name']}",
             "preview_text": f"This is the {meta['name']} voice preview.",
-            "is_distinct_voice_supported": engine == "edge" or active_provider == "say",
-            "fallback_note": "" if engine == "edge" else "Local fallback voices depend on what is installed on this device.",
+            "is_distinct_voice_supported": engine in {"edge", "fish"} or active_provider == "say",
+            "fallback_note": ""
+            if engine in {"edge", "fish"}
+            else "Local fallback voices depend on what is installed on this device.",
         }
         for key, meta in VOICE_PROFILES.items()
     ]
@@ -207,6 +218,39 @@ async def _edge_synth(text: str, provider_voice: str, profile_id: str) -> bytes:
             if data:
                 out.write(data)
     return out.getvalue()
+
+
+async def _fish_synth(text: str, timeout: float, voice: str | None = None) -> tuple[bytes, str]:
+    settings = get_settings()
+    if not settings.effective_fish_api_key:
+        raise RuntimeError("FISH_AUDIO_API_KEY is not configured")
+
+    reference_id = (voice or "").strip()
+    if reference_id.lower() in VOICE_ALIASES or not reference_id:
+        reference_id = settings.effective_fish_voice_id.strip()
+
+    payload: dict[str, object] = {
+        "text": text,
+        "latency": settings.fish_tts_latency,
+        "format": "mp3",
+        "normalize": True,
+        "mp3_bitrate": 128,
+    }
+    if reference_id:
+        payload["reference_id"] = reference_id
+
+    base_url = settings.effective_fish_base_url.rstrip("/")
+    headers = {
+        "Authorization": f"Bearer {settings.effective_fish_api_key}",
+        "Content-Type": "application/json",
+        "Accept": "audio/mpeg",
+        "model": settings.effective_fish_tts_model,
+    }
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        response = await client.post(f"{base_url}/v1/tts", headers=headers, json=payload)
+    response.raise_for_status()
+    mime = response.headers.get("content-type") or "audio/mpeg"
+    return response.content, mime.split(";", 1)[0].strip() or "audio/mpeg"
 
 
 def _espeak_synth(text: str, voice: str | None = None) -> bytes:
@@ -290,7 +334,15 @@ async def synthesize(text: str, voice: str | None = None) -> tuple[bytes, str]:
     settings = get_settings()
     profile_id = voice or "calm_female"
     chosen = _voice_choice(profile_id, "edge") or DEFAULT_VOICE
-    if settings.tts_provider.lower() in {"local", "espeak", "say"}:
+    if settings.effective_tts_provider == "fish":
+        try:
+            audio, mime = await _fish_synth(text, settings.tts_timeout_seconds, voice)
+            if audio:
+                log.info("fish audio TTS ok bytes=%d voice=%s", len(audio), voice or "default")
+                return audio, mime
+        except Exception as e:
+            log.warning("fish audio TTS failed: %s; trying edge-tts", e)
+    if settings.effective_tts_provider in {"local", "espeak", "say"}:
         audio, mime = await _local_synth(text, settings.tts_timeout_seconds, voice)
         if audio:
             return audio, mime

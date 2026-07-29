@@ -22,5 +22,5 @@ apps/mobile/fastlane/report.xml
 !.github/project.json
 infra/status/out/
 /apps/api/.venv-py39
+/apps/api/.venv312
 /apps/api/.env
-

@@ -1,3 +1,47 @@
+<<<<<<< HEAD
+.venv/
+.cache/
+__pycache__/
+*.pyc
+.env
+*.db
+.dev-logs/
+node_modules/
+.dart_tool/
+build/
+.idea/
+*.jks
+android-signing.env
+.secrets/
+.release_artifacts/
+apps/mobile/fastlane/report.xml
+*.json
+!**/package.json
+!.github/project.json
+infra/status/out/
+
+# Python virtual environments
+.venv/
+.venv-*/
+venv/
+env/
+**/.venv/
+**/.venv-*/
+**/venv/
+**/env/
+
+# Python generated files
+__pycache__/
+*.py[cod]
+
+# Archives and large local bundles
+*.zip
+*.tar
+*.tar.gz
+
+# OS files
+.DS_Store
+=======
 # Miscellaneous
 *.class
 *.log
@@ -43,3 +87,4 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+>>>>>>> 61a5539 ( the speech)

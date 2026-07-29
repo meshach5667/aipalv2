@@ -14,6 +14,7 @@ from ..services.today_item_service import (
     cancel_today_item,
     complete_today_item,
     create_today_item,
+    get_today_item,
     list_agenda,
     list_range,
     list_today_items,
@@ -56,6 +57,18 @@ async def get_today_agenda(
 ):
     target = day or user_local_today(user.timezone)
     return await list_agenda(db, user.id, target)
+
+
+@router.get("/{item_id}", response_model=TodayItemResponse)
+async def get_today_item_detail(
+    item_id: UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    row = await get_today_item(db, user.id, item_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Today item not found")
+    return TodayItemResponse(**today_item_to_dict(row))
 
 
 @router.post("", response_model=TodayItemResponse, status_code=201)

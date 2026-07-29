@@ -18,6 +18,7 @@ from ..services.stt_provider import get_streaming_stt
 from ..services.voice_turn import preload_voice_context, run_voice_turn_stream
 from ..services.conversation_manager import conversation_manager, ConversationManagerResult
 from ..services.conversation_state_manager import mark_ai_speaking, mark_listening, mark_user_speaking, update_voice_session_state
+from ..services.proactive_conversation_service import get_or_create_preferences
 from ..tts import synthesize_stream
 from ..voice_pipeline import TurnCancellationRegistry, TurnRateLimiter, split_sentences
 
@@ -26,6 +27,14 @@ log = logging.getLogger("aipal.ws")
 settings = get_settings()
 
 _rate_limiter = TurnRateLimiter(settings.live_turns_per_minute)
+_DEFAULT_VOICE_PROFILE = "calm_female"
+
+
+def _stable_voice_profile(value: object | None) -> str:
+    voice = str(value or "").strip()
+    if not voice or voice == "default":
+        return _DEFAULT_VOICE_PROFILE
+    return voice
 
 
 async def _user_from_token(token: str) -> User | None:
@@ -54,16 +63,24 @@ def _stt_is_reliable(transcript: str, metrics: dict[str, int | float]) -> bool:
 
 
 async def _voice_profile_from_preload(preload_task: asyncio.Task | None) -> str:
-    voice_profile = "calm_female"
+    voice_profile = _DEFAULT_VOICE_PROFILE
     if preload_task is None:
         return voice_profile
     try:
         preloaded_context = await preload_task
         user_preferences = (preloaded_context or {}).get("user_preferences") or {}
-        return str(user_preferences.get("voice_profile") or user_preferences.get("tts_voice") or voice_profile)
+        return _stable_voice_profile(
+            user_preferences.get("voice_profile") or user_preferences.get("tts_voice")
+        )
     except Exception:
         log.exception("voice_profile_preload_failed")
         return voice_profile
+
+
+async def _voice_profile_for_user(user: User) -> str:
+    async with async_session() as db:
+        preferences = await get_or_create_preferences(db, user.id)
+        return _stable_voice_profile(preferences.tts_voice)
 
 
 async def _send_direct_voice_reply(
@@ -161,12 +178,16 @@ async def _run_turn_pipeline(
         nonlocal reply_buffer, tts_t0, metrics, chunk_index
         try:
             preloaded_context = None
-            voice_profile = "calm_female"
+            voice_profile = await _voice_profile_for_user(user)
             if preload_task is not None:
                 try:
                     preloaded_context = await preload_task
                     user_preferences = (preloaded_context or {}).get("user_preferences") or {}
-                    voice_profile = str(user_preferences.get("voice_profile") or user_preferences.get("tts_voice") or voice_profile)
+                    voice_profile = _stable_voice_profile(
+                        user_preferences.get("voice_profile")
+                        or user_preferences.get("tts_voice")
+                        or voice_profile
+                    )
                 except Exception:
                     log.exception("voice_context_preload_failed turn=%s", turn_id)
             async with async_session() as db:
@@ -211,7 +232,7 @@ async def _run_turn_pipeline(
                     etype = event.get("type")
                     if etype == "context_ready":
                         metrics.update(event.get("metrics") or {})
-                        voice_profile = str(event.get("voice_profile") or voice_profile)
+                        voice_profile = _stable_voice_profile(event.get("voice_profile") or voice_profile)
                         await websocket.send_json(
                             {
                                 "type": "context_ready",

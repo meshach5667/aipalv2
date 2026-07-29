@@ -81,10 +81,22 @@ class AudioPlaybackQueue {
     final completer = Completer<void>();
     final startedGeneration = _generation;
     await _completeSub?.cancel();
-    _completeSub = _player.onPlayerComplete.listen((_) {
+    _completeSub = _player.onPlayerComplete.listen(
+      (_) {
+        if (!completer.isCompleted) completer.complete();
+      },
+      onDone: () {
+        if (!completer.isCompleted) completer.complete();
+      },
+      onError: (_) {
+        if (!completer.isCompleted) completer.complete();
+      },
+    );
+    try {
+      await _player.play(BytesSource(chunk.bytes, mimeType: chunk.mime));
+    } catch (_) {
       if (!completer.isCompleted) completer.complete();
-    });
-    await _player.play(BytesSource(chunk.bytes, mimeType: chunk.mime));
+    }
     await completer.future.timeout(
       const Duration(minutes: 2),
       onTimeout: () {},

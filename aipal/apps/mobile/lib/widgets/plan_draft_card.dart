@@ -24,7 +24,8 @@ class PlanDraftCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tasks = (draft['proposed_tasks'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    final tasks =
+        (draft['proposed_tasks'] as List?)?.cast<Map<String, dynamic>>() ?? [];
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
@@ -33,14 +34,24 @@ class PlanDraftCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Add to Today?', style: Theme.of(context).textTheme.titleSmall),
+            Text(
+              'Ready to save?',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Review this draft. Save it, or tell AiPal what to change.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
             const SizedBox(height: 8),
             ...tasks.map((t) {
               final time = _formatDue(t['due_at'] as String?);
               return Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Text(
-                  time.isNotEmpty ? '• ${t['title']} at $time' : '• ${t['title']}',
+                  time.isNotEmpty
+                      ? '• ${t['title']} at $time'
+                      : '• ${t['title']}',
                   style: const TextStyle(fontSize: 14),
                 ),
               );
@@ -48,9 +59,15 @@ class PlanDraftCard extends StatelessWidget {
             const SizedBox(height: 10),
             Row(
               children: [
-                FilledButton(onPressed: onConfirm, child: const Text('Confirm')),
+                FilledButton(
+                  onPressed: onConfirm,
+                  child: const Text('Save to Today'),
+                ),
                 const SizedBox(width: 8),
-                TextButton(onPressed: onDiscard, child: const Text('Not now')),
+                TextButton(
+                  onPressed: onDiscard,
+                  child: const Text('Edit with AiPal'),
+                ),
               ],
             ),
           ],

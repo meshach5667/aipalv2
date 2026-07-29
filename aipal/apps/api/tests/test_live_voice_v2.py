@@ -20,6 +20,14 @@ def test_split_sentences():
     assert rest2 == ""
 
 
+def test_split_sentences_flushes_long_clause():
+    complete, rest = split_sentences(
+        "Okay I’ll put the proposal work after your morning meeting, then keep the evening lighter and leave room for rest before your next commitment."
+    )
+    assert complete == ["Okay I’ll put the proposal work after your morning meeting,"]
+    assert rest.startswith("then keep")
+
+
 def test_strip_plan_json_block():
     text = 'Sure thing.\n```json\n{"intent":"plan_day","proposed_tasks":[]}\n```'
     visible, raw = strip_plan_json_block(text)
@@ -60,6 +68,57 @@ async def test_whisper_streaming_stt_buffers_only_during_speech():
     buffered = await stt.feed_audio(pcm)
     assert buffered is None
     assert len(stt._buffer) == len(pcm)
+
+
+def test_stt_provider_selects_fish_audio():
+    from app.config import Settings
+    from app.services.fish_audio_stt import FishAudioStreamingSTT
+    from app.services.stt_provider import get_streaming_stt
+
+    settings = Settings(speech_stt_provider="fish_audio", fish_audio_api_key="test")
+    assert isinstance(get_streaming_stt(settings), FishAudioStreamingSTT)
+
+
+@pytest.mark.asyncio
+async def test_fish_audio_stt_success():
+    from app.config import Settings
+    from app.services.fish_audio_stt import FishAudioStreamingSTT
+
+    settings = Settings(speech_stt_provider="fish_audio", fish_audio_api_key="test")
+    stt = FishAudioStreamingSTT(settings)
+    pcm = (np.ones(4000, dtype=np.int16) * 500).tobytes()
+
+    with patch.object(stt, "_transcribe_wav", new_callable=AsyncMock) as mock_tx:
+        mock_tx.return_value = "create a task tomorrow at 5pm"
+        await stt.on_speech_start()
+        await stt.feed_audio(pcm)
+        text = await stt.on_speech_end()
+
+    assert text == "create a task tomorrow at 5pm"
+    metrics = stt.consume_metrics()
+    assert metrics["stt_provider"] == "fish_audio"
+    assert metrics["stt_confidence"] > 0
+
+
+@pytest.mark.asyncio
+async def test_fish_audio_stt_failure_returns_empty_with_metrics():
+    from app.config import Settings
+    from app.services.fish_audio_stt import FishAudioStreamingSTT
+
+    settings = Settings(speech_stt_provider="fish_audio", fish_audio_api_key="test")
+    stt = FishAudioStreamingSTT(settings)
+    pcm = (np.ones(4000, dtype=np.int16) * 500).tobytes()
+
+    with patch.object(stt, "_transcribe_wav", new_callable=AsyncMock) as mock_tx:
+        mock_tx.side_effect = RuntimeError("no credits")
+        await stt.on_speech_start()
+        await stt.feed_audio(pcm)
+        text = await stt.on_speech_end()
+
+    assert text == ""
+    metrics = stt.consume_metrics()
+    assert metrics["stt_provider"] == "fish_audio"
+    assert metrics["stt_no_speech_probability"] == 1.0
 
 
 @pytest.mark.asyncio

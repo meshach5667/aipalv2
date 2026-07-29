@@ -144,13 +144,16 @@ class WhisperStreamingSTT:
                 beam_size=beam_size,
                 vad_filter=True,
                 condition_on_previous_text=False,
-                initial_prompt=(
-                    "Natural conversational English. The speaker may have a Nigerian accent. "
-                    "Preserve names, dates, times, reminders, meetings, and tasks accurately."
-                ),
+                initial_prompt=None,
             )
             rows = list(segments)
             text = " ".join(s.text.strip() for s in rows if s.text.strip()).strip()
+            if self._looks_like_prompt_echo(text):
+                return "", {
+                    "stt_confidence": 0.0,
+                    "stt_no_speech_probability": 1.0,
+                    "stt_language": "prompt_echo",
+                }
             if not rows:
                 return text, {
                     "stt_confidence": 0.0,
@@ -168,3 +171,7 @@ class WhisperStreamingSTT:
         except Exception as e:
             log.warning("Whisper streaming transcribe failed: %s", e)
             return "", {"stt_confidence": 0.0, "stt_no_speech_probability": 1.0}
+
+    def _looks_like_prompt_echo(self, text: str) -> bool:
+        lower = " ".join(text.lower().split())
+        return "speaker may have" in lower and "preserve names" in lower

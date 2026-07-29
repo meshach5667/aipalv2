@@ -590,8 +590,131 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> createTask(String title, {String? notes, String? goalId}) async {
-    await api.createTask(title, notes: notes, goalId: goalId);
+  Future<void> loadPlanDraft() async {
+    try {
+      pendingPlanDraft = await api.fetchPlanDraft();
+    } catch (_) {
+      pendingPlanDraft = null;
+    }
+    notifyListeners();
+  }
+
+  Future<void> suggestDayPlan({String? template}) async {
+    try {
+      final res = await api.suggestDay(template: template);
+      pendingPlanDraft = res['plan_draft'] as Map<String, dynamic>?;
+      suggestDayNotice = res['notice'] as String?;
+    } catch (_) {
+      suggestDayNotice = null;
+      rethrow;
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  void clearSuggestDayNotice() {
+    suggestDayNotice = null;
+    notifyListeners();
+  }
+
+  Future<Map<String, dynamic>> sendTextTurn(
+    String text, {
+    String? sessionId,
+  }) async {
+    final cleanText = text.trim();
+    if (cleanText.isEmpty) return {};
+
+    _processingTurn = true;
+    turnError = null;
+    notifyListeners();
+
+    try {
+      final res = await api.companionTurn(
+        cleanText,
+        conversationId: sessionId ?? companionConversationId,
+      );
+      _applyCompanionTurnResponse(res);
+      unawaited(refreshConversationSessions());
+      return res;
+    } catch (e) {
+      turnError = _friendlyTurnError(e);
+      rethrow;
+    } finally {
+      _processingTurn = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> confirmPlanDraft() async {
+    await api.confirmPlanDraft();
+    pendingPlanDraft = null;
+    requiresConfirmation = false;
+    confirmationPrompt = null;
+    await refreshTodayView();
+    notifyListeners();
+  }
+
+  Future<void> discardPlanDraft() async {
+    await api.discardPlanDraft();
+    pendingPlanDraft = null;
+    requiresConfirmation = false;
+    confirmationPrompt = null;
+    notifyListeners();
+  }
+
+  void _applyCompanionTurnResponse(Map<String, dynamic> res) {
+    lastReply =
+        (res['assistantMessage'] as String?) ?? (res['reply'] as String?);
+    companionMode = res['mode'] as String? ?? companionMode;
+    companionEmotion =
+        res['emotion'] as Map<String, dynamic>? ?? companionEmotion;
+    memoriesUsed = (res['memories_used'] as List? ?? [])
+        .whereType<Map>()
+        .map((item) => item.cast<String, dynamic>())
+        .toList();
+    suggestedActions = (res['suggested_actions'] as List? ?? [])
+        .whereType<Map>()
+        .map((item) => item.cast<String, dynamic>())
+        .toList();
+    confirmationPrompt = res['confirmation_prompt'] as String?;
+    requiresConfirmation = res['requires_confirmation'] as bool? ?? false;
+    companionConversationId =
+        res['conversation_id'] as String? ?? companionConversationId;
+    if (res['draft_confirmed'] == true) {
+      pendingPlanDraft = null;
+      unawaited(refreshTodayView());
+    } else {
+      pendingPlanDraft = res['plan_draft'] as Map<String, dynamic>?;
+      if (pendingPlanDraft == null) {
+        unawaited(loadPlanDraft());
+      }
+      if (res['tool_actions'] is List &&
+          (res['tool_actions'] as List).isNotEmpty) {
+        unawaited(refreshTodayView());
+      }
+    }
+  }
+
+  Future<void> createTask(
+    String title, {
+    String? notes,
+    String? goalId,
+    DateTime? dueAt,
+    int? priority,
+    int? estimatedMinutes,
+    String? category,
+    int? parentTaskId,
+  }) async {
+    await api.createTask(
+      title,
+      notes: notes,
+      goalId: goalId,
+      dueAt: dueAt,
+      priority: priority,
+      estimatedMinutes: estimatedMinutes,
+      category: category,
+      parentTaskId: parentTaskId,
+    );
     await refreshTodayView();
   }
 
@@ -602,12 +725,14 @@ class AppState extends ChangeNotifier {
     String? status,
     DateTime? dueAt,
     String? goalId,
+    int? priority,
   }) async {
     final body = <String, dynamic>{
       if (title != null) 'title': title,
       if (notes != null) 'notes': notes,
       if (dueAt != null) 'due_at': dueAt.toUtc().toIso8601String(),
-      if (goalId != null) 'goal_id': goalId,
+      if (goalId != null) 'goal_id': goalId.isEmpty ? null : goalId,
+      if (priority != null) 'priority': priority,
     };
     await api.patchTask(id, status: status, extra: body);
     await refreshTodayView();
@@ -630,6 +755,15 @@ class AppState extends ChangeNotifier {
 
   Future<void> completeTodayItem(String id) async {
     await api.completeTodayItem(id);
+    await refreshTodayView();
+  }
+
+  Future<void> toggleItemComplete(String id, bool completed) async {
+    if (completed) {
+      await api.completeTodayItem(id);
+    } else {
+      await api.updateTodayItem(id, {'status': 'open'});
+    }
     await refreshTodayView();
   }
 
@@ -658,6 +792,15 @@ class AppState extends ChangeNotifier {
     focusTask = item;
     await refreshTodayView();
     notifyListeners();
+  }
+
+  Future<void> startFocusTask(Map<String, dynamic> item) async {
+    final id = item['id'];
+    if (id is int) {
+      await startFocus(item);
+      return;
+    }
+    await startFocusTodayItem(item);
   }
 
   Future<void> breakdownTask(int id) async {
@@ -724,7 +867,12 @@ class AppState extends ChangeNotifier {
 
   Future<void> completeFocusTask() async {
     if (focusTask != null) {
-      await completeTask(focusTask!['id'] as int);
+      final id = focusTask!['id'];
+      if (id is int) {
+        await completeTask(id);
+      } else if (id != null) {
+        await completeTodayItem(id.toString());
+      }
     }
     cancelFocus();
   }
@@ -747,10 +895,14 @@ class AppState extends ChangeNotifier {
   String _friendlyTurnError(Object error) {
     final text = error.toString();
     if (text.contains('TimeoutException') || text.contains('timed out')) {
-      return 'That took longer than expected. Please try again or switch to text mode.';
+      return 'AiPal is still taking too long to respond. Check that the local backend is running and the AI provider is responding, then try again.';
     }
-    if (text.contains('SocketException')) {
-      return 'Connection problem. Check your network and try again.';
+    if (text.contains('SocketException') ||
+        text.contains('ClientException') ||
+        text.contains('XMLHttpRequest') ||
+        text.contains('ERR_CONNECTION_REFUSED') ||
+        text.contains('Failed to fetch')) {
+      return 'The local API is not reachable. Make sure the backend is running on 127.0.0.1:8102, then try again.';
     }
     if (text.contains('Microphone permission')) {
       return 'Microphone permission is required for Live voice mode.';
@@ -873,7 +1025,15 @@ class AppState extends ChangeNotifier {
         liveSession.state = LiveState.thinking;
         lastReply = null;
       }
-      if (s == 'listening') liveSession.state = LiveState.listening;
+      if (s == 'listening') {
+        if (_liveVoiceV2?.isPlaybackActive ?? false) {
+          liveSession.state = LiveState.speaking;
+          _speaking = true;
+        } else {
+          liveSession.state = LiveState.listening;
+          _speaking = false;
+        }
+      }
       if (s == 'speaking') {
         liveSession.state = LiveState.speaking;
         _speaking = true;
@@ -898,7 +1058,6 @@ class AppState extends ChangeNotifier {
     }
     if (type == 'turn_complete') {
       _processingTurn = false;
-      _speaking = false;
       turnError = null;
       lastReply =
           (msg['assistantMessage'] as String?) ??
@@ -930,7 +1089,13 @@ class AppState extends ChangeNotifier {
           unawaited(refreshTodayView());
         }
       }
-      liveSession.state = LiveState.listening;
+      if (_liveVoiceV2?.isPlaybackActive ?? false) {
+        _speaking = true;
+        liveSession.state = LiveState.speaking;
+      } else {
+        _speaking = false;
+        liveSession.state = LiveState.listening;
+      }
     }
     if (type == 'turn_cancelled') {
       _speaking = false;
@@ -1049,23 +1214,18 @@ class AppState extends ChangeNotifier {
     } on TimeoutException {
       if (turnGen == _turnGeneration) {
         turnError =
-            'That voice turn took too long. Please try again, or switch to text mode for a faster response.';
-        lastReply = null;
+            'AiPal is still taking too long to respond. Check that the local backend is running and the AI provider is responding, then try again.';
       }
     } catch (e) {
       if (turnGen == _turnGeneration) {
         turnError = _friendlyTurnError(e);
-        lastReply = null;
       }
     } finally {
       if (turnGen == _turnGeneration) {
         _processingTurn = false;
-      }
-      if (turnGen == _turnGeneration && liveSession.isActive) {
-        liveSession.state = LiveState.listening;
-      }
-      if (turnGen == _turnGeneration) {
-        await syncWakeListener();
+        if (liveSession.isActive && !_speaking) {
+          liveSession.state = LiveState.listening;
+        }
         notifyListeners();
       }
       if (shouldRefreshToday) {
@@ -1078,139 +1238,50 @@ class AppState extends ChangeNotifier {
     Map<String, dynamic> res, {
     int? turnGen,
   }) async {
-    if (res['speak'] == false) return;
-    if (res.containsKey('assistantMessage')) {
-      final assistantMessage = res['assistantMessage'] as String?;
-      if (assistantMessage == null || assistantMessage.trim().isEmpty) {
-        return;
-      }
-    }
-    final audioB64 = res['audio_base64'] as String?;
+    final b64 = res['audio_base64'] as String?;
+    if (b64 == null || b64.isEmpty) return;
+    final bytes = base64Decode(b64);
     final mime = res['audio_mime'] as String? ?? 'audio/mpeg';
-    if (audioB64 == null || audioB64.isEmpty) return;
-    if (turnGen != null && turnGen != _turnGeneration) return;
+
     _speaking = true;
-    liveSession.state = LiveState.speaking;
+    if (liveSession.isActive) {
+      liveSession.state = LiveState.speaking;
+    }
     notifyListeners();
-    final completer = Completer<void>();
-    StreamSubscription<void>? sub;
+
     try {
-      sub = _player.onPlayerComplete.listen((_) {
-        final current = sub;
-        if (current != null) {
-          unawaited(current.cancel());
-        }
-        if (!completer.isCompleted) completer.complete();
-      });
-      await _player.play(BytesSource(base64Decode(audioB64), mimeType: mime));
-      await completer.future.timeout(
-        const Duration(minutes: 2),
-        onTimeout: () {},
+      await _player.stop();
+      final completer = Completer<void>();
+      late final StreamSubscription<void> sub;
+      sub = _player.onPlayerComplete.listen(
+        (_) {
+          if (!completer.isCompleted) completer.complete();
+        },
+        onDone: () {
+          if (!completer.isCompleted) completer.complete();
+        },
+        onError: (_) {
+          if (!completer.isCompleted) completer.complete();
+        },
       );
+      try {
+        await _player.play(BytesSource(bytes, mimeType: mime));
+        await completer.future.timeout(
+          const Duration(minutes: 2),
+          onTimeout: () {},
+        );
+      } finally {
+        await sub.cancel();
+      }
+    } catch (_) {
     } finally {
-      await sub?.cancel();
       if (turnGen == null || turnGen == _turnGeneration) {
         _speaking = false;
         if (liveSession.isActive) {
           liveSession.state = LiveState.listening;
         }
-        await syncWakeListener();
         notifyListeners();
       }
     }
-  }
-
-  @override
-  void dispose() {
-    _cancelNudgeTimers();
-    if (_isAndroid) {
-      FlutterForegroundTask.removeTaskDataCallback(_onBackgroundWakeData);
-      unawaited(WakeBackgroundService.stop());
-    }
-    unawaited(_wakeWord?.dispose());
-    super.dispose();
-  }
-
-  Future<Map<String, dynamic>> sendTextTurn(
-    String text, {
-    String? sessionId,
-  }) async {
-    // Text mode is a dedicated REST chat surface; it must always get a real
-    // assistant reply from the server and never echo the user's own input,
-    // regardless of whether a Live voice session is open.
-    try {
-      final res = await api.companionTurn(
-        text,
-        conversationId: sessionId,
-        source: 'text',
-      );
-      turnError = null;
-      lastReply =
-          (res['assistantMessage'] as String?) ?? (res['reply'] as String?);
-      pendingPlanDraft = res['plan_draft'] as Map<String, dynamic>?;
-      companionMode = res['mode'] as String?;
-      companionEmotion = res['emotion'] as Map<String, dynamic>?;
-      memoriesUsed = (res['memories_used'] as List? ?? [])
-          .whereType<Map>()
-          .map((item) => item.cast<String, dynamic>())
-          .toList();
-      suggestedActions = (res['suggested_actions'] as List? ?? [])
-          .whereType<Map>()
-          .map((item) => item.cast<String, dynamic>())
-          .toList();
-      confirmationPrompt = res['confirmation_prompt'] as String?;
-      requiresConfirmation = res['requires_confirmation'] as bool? ?? false;
-      companionConversationId = res['conversation_id']?.toString();
-      await refreshTodayView();
-      unawaited(refreshConversationSessions());
-      notifyListeners();
-      return res;
-    } catch (e) {
-      turnError = _friendlyTurnError(e);
-      notifyListeners();
-      rethrow;
-    }
-  }
-
-  Future<void> confirmPlanDraft() async {
-    await api.confirmPlanDraft();
-    pendingPlanDraft = null;
-    await refreshTodayView();
-    notifyListeners();
-  }
-
-  Future<void> discardPlanDraft() async {
-    await api.discardPlanDraft();
-    pendingPlanDraft = null;
-    notifyListeners();
-  }
-
-  Future<void> loadPlanDraft() async {
-    pendingPlanDraft = await api.fetchPlanDraft();
-    notifyListeners();
-  }
-
-  Future<void> suggestDayPlan({String? template}) async {
-    loading = true;
-    suggestDayNotice = null;
-    notifyListeners();
-    try {
-      pendingPlanDraft = await api.suggestDay(template: template);
-      if (pendingPlanDraft == null) {
-        suggestDayNotice =
-            'No plan suggestions right now. Try a routine chip above or add a task first.';
-      }
-    } catch (e) {
-      suggestDayNotice =
-          'Could not suggest a plan. Check your connection and try again.';
-    } finally {
-      loading = false;
-      notifyListeners();
-    }
-  }
-
-  void clearSuggestDayNotice() {
-    suggestDayNotice = null;
-    notifyListeners();
   }
 }

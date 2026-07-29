@@ -12,6 +12,7 @@ from typing import AsyncIterator
 log = logging.getLogger("aipal.voice_pipeline")
 
 _SENTENCE_SPLIT = re.compile(r'(?<=[.!?])\s+')
+_CLAUSE_SPLIT = re.compile(r"^(.{40,120}?[,:;])\s+")
 _PLAN_JSON_BLOCK = re.compile(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", re.IGNORECASE)
 
 
@@ -20,10 +21,16 @@ def split_sentences(text: str, *, flush: bool = False) -> tuple[list[str], str]:
     if flush and text.strip():
         return [text.strip()], ""
     parts = _SENTENCE_SPLIT.split(text)
-    if len(parts) <= 1:
-        return [], text
-    complete = [p.strip() for p in parts[:-1] if p.strip()]
-    return complete, parts[-1]
+    if len(parts) > 1:
+        complete = [p.strip() for p in parts[:-1] if p.strip()]
+        return complete, parts[-1]
+    stripped = text.strip()
+    if len(stripped) >= 120:
+        clause = _CLAUSE_SPLIT.match(stripped)
+        if clause:
+            spoken = clause.group(1).strip()
+            return [spoken], stripped[len(spoken) :].strip()
+    return [], text
 
 
 def strip_plan_json_block(text: str) -> tuple[str, str | None]:

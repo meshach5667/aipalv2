@@ -2,12 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_state.dart';
-import 'notifications_screen.dart';
 import 'companion_screen.dart';
+import 'notifications_screen.dart';
 import 'settings_screen.dart';
 import 'task_detail_screen.dart';
 import 'text_chat_screen.dart';
 import 'today_screen.dart';
+
+/// Design System Color Palette inspired by Luminous Intelligence
+class AiPalTheme {
+  static const Color primary = Color(0xFF705D00);
+  static const Color primaryContainer = Color(0xFFFFD600);
+  static const Color onPrimaryContainer = Color(0xFF705D00);
+  static const Color surfaceContainerLow = Color(0xFFF3F3F3);
+  static const Color surfaceContainerHigh = Color(0xFFE8E8E8);
+  static const Color surfaceContainerHighest = Color(0xFFE2E2E2);
+  static const Color background = Color(0xFFF9F9F9);
+  static const Color onSurface = Color(0xFF1A1C1C);
+  static const Color onSurfaceVariant = Color(0xFF4D4632);
+  static const Color outlineVariant = Color(0xFFD0C6AB);
+  static const Color error = Color(0xFFBA1A1A);
+  static const Color onError = Color(0xFFFFFFFF);
+}
 
 class HomeShell extends StatelessWidget {
   const HomeShell({super.key});
@@ -75,7 +91,7 @@ class AiPalShellScaffold extends StatelessWidget {
         (int index) => context.read<AppState>().goToTab(index);
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: AiPalTheme.background,
       body: Row(
         children: [
           if (isDesktop && showDesktopSidebar)
@@ -102,6 +118,101 @@ class AiPalShellScaffold extends StatelessWidget {
   }
 }
 
+/// Premium Clean Top App Bar
+class _TopHeader extends StatelessWidget {
+  const _TopHeader({
+    required this.title,
+    required this.subtitle,
+    required this.onNotificationsTap,
+    required this.onProfileTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final VoidCallback onNotificationsTap;
+  final VoidCallback onProfileTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: const BoxDecoration(
+        color: AiPalTheme.background,
+        border: Border(
+          bottom: BorderSide(color: Color(0xFFEEEEEE), width: 1),
+        ),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: AiPalTheme.primary,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w400,
+                      color: AiPalTheme.onSurfaceVariant,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: onNotificationsTap,
+              icon: const Icon(Icons.notifications_outlined),
+              color: AiPalTheme.onSurface,
+              tooltip: 'Notifications',
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: onProfileTap,
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AiPalTheme.surfaceContainerHigh,
+                    width: 2,
+                  ),
+                  color: AiPalTheme.surfaceContainerLow,
+                ),
+                child: const ClipOval(
+                  child: Icon(
+                    Icons.person_rounded,
+                    color: AiPalTheme.onSurfaceVariant,
+                    size: 22,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Desktop Navigation Sidebar
 class _DesktopSidebar extends StatefulWidget {
   const _DesktopSidebar({required this.activeIndex, required this.onTabTap});
 
@@ -124,9 +235,10 @@ class _DesktopSidebarState extends State<_DesktopSidebar> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Delete conversation?'),
         content: const Text(
-          'This will remove the conversation thread from the sidebar.',
+          'This will remove the conversation thread from your sidebar.',
         ),
         actions: [
           TextButton(
@@ -134,6 +246,10 @@ class _DesktopSidebarState extends State<_DesktopSidebar> {
             child: const Text('Cancel'),
           ),
           FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AiPalTheme.error,
+              foregroundColor: AiPalTheme.onError,
+            ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Delete'),
           ),
@@ -201,223 +317,228 @@ class _DesktopSidebarState extends State<_DesktopSidebar> {
           ];
 
     return Container(
-      width: 256,
+      width: 270,
       height: double.infinity,
-      decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.72),
+      decoration: const BoxDecoration(
+        color: AiPalTheme.background,
         border: Border(
-          right: BorderSide(color: Colors.white.withValues(alpha: 0.7)),
+          right: BorderSide(color: Color(0xFFEEEEEE), width: 1),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF1A1F2C).withValues(alpha: 0.04),
-            blurRadius: 60,
-            offset: const Offset(30, 0),
-          ),
-        ],
       ),
       child: SafeArea(
         bottom: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 8),
-              Text(
-                'AiPal',
-                style: TextStyle(
-                  fontFamily: 'Manrope',
-                  fontSize: 42,
-                  height: 1,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -1.4,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Quiet Intelligence',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF575C6B),
-                ),
-              ),
-              const SizedBox(height: 28),
-
-              _SidebarItem(
-                index: 0,
-                currentIndex: index,
-                icon: Icons.graphic_eq_rounded,
-                label: 'Companion',
-                onTap: widget.onTabTap,
-              ),
-              const SizedBox(height: 12),
-              _SidebarItem(
-                index: 1,
-                currentIndex: index,
-                icon: Icons.calendar_today_rounded,
-                label: 'Today',
-                onTap: widget.onTabTap,
-              ),
-              const SizedBox(height: 12),
-              _SidebarItem(
-                index: 2,
-                currentIndex: index,
-                icon: Icons.notifications_none_rounded,
-                label: 'Notifications',
-                onTap: widget.onTabTap,
-              ),
-              const SizedBox(height: 12),
-              _SidebarItem(
-                index: 3,
-                currentIndex: index,
-                icon: Icons.settings_rounded,
-                label: 'Settings',
-                onTap: widget.onTabTap,
-              ),
-
-              const SizedBox(height: 18),
-              if (index == 0)
-                _SidebarAccordion(
-                  title: 'Companion threads',
-                  subtitle: 'Resume or remove a conversation',
-                  expanded: _companionOpen,
-                  onChanged: (v) => setState(() => _companionOpen = v),
-                  child: companionSessions.isEmpty
-                      ? const _SidebarEmptyHint(
-                          text: 'No saved conversations yet.',
-                        )
-                      : Column(
-                          children: companionSessions.map((session) {
-                            final sessionId =
-                                session['session_id']?.toString() ?? '';
-                            return _ThreadTile(
-                              title:
-                                  session['preview']?.toString().isNotEmpty ==
-                                      true
-                                  ? session['preview'].toString()
-                                  : 'Conversation',
-                              meta:
-                                  '${session['turn_count']?.toString() ?? '0'} turns',
-                              onOpen: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        TextChatScreen(sessionId: sessionId),
-                                  ),
-                                );
-                              },
-                              onDelete: () => _confirmDeleteConversation(
-                                context,
-                                state,
-                                sessionId,
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                ),
-              if (index == 1)
-                _SidebarAccordion(
-                  title: 'Today tasks',
-                  subtitle: 'Edit or delete open work',
-                  expanded: _todayOpen,
-                  onChanged: (v) => setState(() => _todayOpen = v),
-                  child: openTasks.isEmpty
-                      ? const _SidebarEmptyHint(
-                          text: 'No open tasks to edit right now.',
-                        )
-                      : Column(
-                          children: openTasks.take(8).map((task) {
-                            return _TaskTile(
-                              title:
-                                  task['title']?.toString() ?? 'Untitled task',
-                              meta:
-                                  task['due_label']?.toString() ??
-                                  task['status']?.toString() ??
-                                  'planned',
-                              onOpen: () => _openTaskDetail(context, task),
-                              onEdit: () => _editTask(context, state, task),
-                              onDelete: () async {
-                                final id = task['id'] as int?;
-                                if (id != null) {
-                                  final messenger = ScaffoldMessenger.of(
-                                    context,
-                                  );
-                                  await state.deleteTask(id);
-                                  if (mounted) {
-                                    messenger.showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Task deleted'),
-                                      ),
-                                    );
-                                  }
-                                }
-                              },
-                            );
-                          }).toList(),
-                        ),
-                ),
-
-              const SizedBox(height: 20),
-
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.45),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.7),
-                  ),
-                ),
-                child: Row(
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
+                    Row(
+                      children: const [
+                        Icon(
+                          Icons.security_rounded,
+                          color: AiPalTheme.onSurface,
+                          size: 22,
                         ),
-                      ),
-                      child: const Icon(
-                        Icons.person_rounded,
-                        color: Colors.white,
+                        Spacer(),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'AiPal',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 32,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -1.0,
+                        color: AiPalTheme.primary,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            context.watch<AppState>().profile?['display_name'] ?? context.watch<AppState>().profile?['wake_name'] ?? 'Friend',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: Theme.of(context).colorScheme.onSurface,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          const Text(
-                            'Premium Plan',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.8,
-                              color: Color(0xFF575C6B),
-                            ),
-                          ),
-                        ],
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Quiet Intelligence',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: AiPalTheme.onSurfaceVariant,
                       ),
                     ),
+                    const SizedBox(height: 28),
+
+                    _SidebarItem(
+                      index: 0,
+                      currentIndex: index,
+                      icon: Icons.smart_toy_rounded,
+                      label: 'Companion',
+                      onTap: widget.onTabTap,
+                    ),
+                    const SizedBox(height: 6),
+                    _SidebarItem(
+                      index: 1,
+                      currentIndex: index,
+                      icon: Icons.calendar_today_rounded,
+                      label: 'Today',
+                      onTap: widget.onTabTap,
+                    ),
+                    const SizedBox(height: 6),
+                    _SidebarItem(
+                      index: 2,
+                      currentIndex: index,
+                      icon: Icons.notifications_none_rounded,
+                      label: 'Alerts',
+                      onTap: widget.onTabTap,
+                    ),
+                    const SizedBox(height: 6),
+                    _SidebarItem(
+                      index: 3,
+                      currentIndex: index,
+                      icon: Icons.settings_rounded,
+                      label: 'Settings',
+                      onTap: widget.onTabTap,
+                    ),
+
+                    const SizedBox(height: 24),
+                    if (index == 0)
+                      _SidebarAccordion(
+                        title: 'Companion Threads',
+                        subtitle: 'Resume or remove threads',
+                        expanded: _companionOpen,
+                        onChanged: (v) => setState(() => _companionOpen = v),
+                        child: companionSessions.isEmpty
+                            ? const _SidebarEmptyHint(
+                                text: 'No saved conversations yet.',
+                              )
+                            : Column(
+                                children: companionSessions.map((session) {
+                                  final sessionId =
+                                      session['session_id']?.toString() ?? '';
+                                  return _ThreadTile(
+                                    title:
+                                        session['preview']
+                                                    ?.toString()
+                                                    .isNotEmpty ==
+                                                true
+                                            ? session['preview'].toString()
+                                            : 'Conversation',
+                                    meta:
+                                        '${session['turn_count']?.toString() ?? '0'} turns',
+                                    onOpen: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => TextChatScreen(
+                                            sessionId: sessionId,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    onDelete: () => _confirmDeleteConversation(
+                                      context,
+                                      state,
+                                      sessionId,
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                      ),
+                    if (index == 1)
+                      _SidebarAccordion(
+                        title: 'Today Tasks',
+                        subtitle: 'Edit or manage open work',
+                        expanded: _todayOpen,
+                        onChanged: (v) => setState(() => _todayOpen = v),
+                        child: openTasks.isEmpty
+                            ? const _SidebarEmptyHint(
+                                text: 'No open tasks to edit.',
+                              )
+                            : Column(
+                                children: openTasks.take(8).map((task) {
+                                  return _TaskTile(
+                                    title:
+                                        task['title']?.toString() ??
+                                        'Untitled task',
+                                    meta:
+                                        task['due_label']?.toString() ??
+                                        task['status']?.toString() ??
+                                        'planned',
+                                    onOpen: () =>
+                                        _openTaskDetail(context, task),
+                                    onEdit: () =>
+                                        _editTask(context, state, task),
+                                    onDelete: () async {
+                                      final id = task['id'] as int?;
+                                      if (id != null) {
+                                        final messenger = ScaffoldMessenger.of(
+                                          context,
+                                        );
+                                        await state.deleteTask(id);
+                                        if (mounted) {
+                                          messenger.showSnackBar(
+                                            const SnackBar(
+                                              content: Text('Task deleted'),
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    },
+                                  );
+                                }).toList(),
+                              ),
+                      ),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AiPalTheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  const CircleAvatar(
+                    radius: 18,
+                    backgroundColor: AiPalTheme.surfaceContainerHigh,
+                    child: Icon(
+                      Icons.person,
+                      color: AiPalTheme.onSurfaceVariant,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'User Session',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AiPalTheme.onSurface,
+                          ),
+                        ),
+                        Text(
+                          'Active',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 11,
+                            color: AiPalTheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -442,34 +563,39 @@ class _SidebarItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final active = index == currentIndex;
-
     return Material(
-      color: active
-          ? const Color(0xFFF4D9FF).withValues(alpha: 0.55)
-          : Colors.transparent,
-      borderRadius: BorderRadius.circular(24),
+      color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(99),
         onTap: () => onTap(index),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: active
+                ? AiPalTheme.primaryContainer
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(99),
+          ),
           child: Row(
             children: [
               Icon(
                 icon,
+                size: 20,
                 color: active
-                    ? Theme.of(context).colorScheme.primary
-                    : const Color(0xFF575C6B),
+                    ? AiPalTheme.onPrimaryContainer
+                    : AiPalTheme.onSurfaceVariant,
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Text(
                 label,
                 style: TextStyle(
+                  fontFamily: 'Inter',
                   fontSize: 14,
-                  fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                  fontWeight: active ? FontWeight.w600 : FontWeight.w500,
                   color: active
-                      ? Theme.of(context).colorScheme.primary
-                      : const Color(0xFF575C6B),
+                      ? AiPalTheme.onPrimaryContainer
+                      : AiPalTheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -497,36 +623,60 @@ class _SidebarAccordion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Theme(
-      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-      child: Material(
-        color: Colors.transparent,
-        child: ExpansionTile(
-          initiallyExpanded: expanded,
-          onExpansionChanged: onChanged,
-          tilePadding: EdgeInsets.zero,
-          childrenPadding: const EdgeInsets.only(top: 10),
-          collapsedIconColor: Theme.of(context).colorScheme.primary,
-          iconColor: Theme.of(context).colorScheme.primary,
-          title: Text(
-            title,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.6,
-              color: Theme.of(context).colorScheme.onSurface,
+    return Container(
+      decoration: BoxDecoration(
+        color: AiPalTheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => onChanged(!expanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AiPalTheme.onSurface,
+                          ),
+                        ),
+                        Text(
+                          subtitle,
+                          style: const TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 11,
+                            color: AiPalTheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    expanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    color: AiPalTheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
             ),
           ),
-          subtitle: Text(
-            subtitle,
-            style: const TextStyle(
-              fontSize: 11.5,
-              height: 1.35,
-              color: Color(0xFF575C6B),
+          if (expanded)
+            Padding(
+              padding: const EdgeInsets.only(left: 10, right: 10, bottom: 10),
+              child: child,
             ),
-          ),
-          children: [child],
-        ),
+        ],
       ),
     );
   }
@@ -534,25 +684,18 @@ class _SidebarAccordion extends StatelessWidget {
 
 class _SidebarEmptyHint extends StatelessWidget {
   const _SidebarEmptyHint({required this.text});
-
   final String text;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.48),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.75)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.all(12),
       child: Text(
         text,
         style: const TextStyle(
-          fontSize: 12.5,
-          height: 1.45,
-          color: Color(0xFF575C6B),
+          fontFamily: 'Inter',
+          fontSize: 12,
+          color: AiPalTheme.onSurfaceVariant,
         ),
       ),
     );
@@ -575,46 +718,34 @@ class _ThreadTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(top: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.78)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 13.5,
-              height: 1.3,
-              fontWeight: FontWeight.w800,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+        dense: true,
+        title: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
           ),
-          const SizedBox(height: 6),
-          Text(
-            meta,
-            style: const TextStyle(fontSize: 11.5, color: Color(0xFF575C6B)),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              TextButton(onPressed: onOpen, child: const Text('Return')),
-              const Spacer(),
-              IconButton(
-                onPressed: onDelete,
-                icon: const Icon(Icons.delete_outline_rounded),
-                color: const Color(0xFFBA1A1A),
-                tooltip: 'Delete conversation',
-              ),
-            ],
-          ),
-        ],
+        ),
+        subtitle: Text(
+          meta,
+          style: const TextStyle(fontFamily: 'Inter', fontSize: 10),
+        ),
+        trailing: IconButton(
+          icon: const Icon(Icons.close, size: 16),
+          onPressed: onDelete,
+          splashRadius: 16,
+        ),
+        onTap: onOpen,
       ),
     );
   }
@@ -637,103 +768,45 @@ class _TaskTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white.withValues(alpha: 0.5),
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: onOpen,
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.78)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13.5,
-                  height: 1.3,
-                  fontWeight: FontWeight.w800,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                meta,
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  color: Color(0xFF575C6B),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  TextButton(onPressed: onEdit, child: const Text('Edit')),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF4D9FF).withValues(alpha: 0.45),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Open',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          size: 16,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: onDelete,
-                    icon: const Icon(Icons.delete_outline_rounded),
-                    color: const Color(0xFFBA1A1A),
-                    tooltip: 'Delete task',
-                  ),
-                ],
-              ),
-            ],
+    return Container(
+      margin: const EdgeInsets.only(top: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+        dense: true,
+        title: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _SheetHandle extends StatelessWidget {
-  const _SheetHandle();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 48,
-      height: 5,
-      decoration: BoxDecoration(
-        color: const Color(0xFFCEC3CE),
-        borderRadius: BorderRadius.circular(999),
+        subtitle: Text(
+          meta,
+          style: const TextStyle(fontFamily: 'Inter', fontSize: 10),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, size: 16),
+              onPressed: onEdit,
+              splashRadius: 16,
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, size: 16),
+              onPressed: onDelete,
+              splashRadius: 16,
+            ),
+          ],
+        ),
+        onTap: onOpen,
       ),
     );
   }
@@ -752,225 +825,66 @@ class _TaskEditorSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 560),
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: BorderRadius.circular(36),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
-          boxShadow: [
-            BoxShadow(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
-              blurRadius: 50,
-              offset: const Offset(0, 24),
-            ),
-          ],
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const _SheetHandle(),
-              const SizedBox(height: 20),
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF4D9FF),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFFE6E1E6)),
-                ),
-                child: Icon(
-                  Icons.edit_note_rounded,
-                  color: Theme.of(context).colorScheme.primary,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Edit Task',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'Manrope',
-                  fontSize: 28,
-                  height: 1.15,
-                  fontWeight: FontWeight.w800,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Update the task details and keep the rhythm clear.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  height: 1.55,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF4B444D),
-                ),
-              ),
-              const SizedBox(height: 22),
-              _EditorInput(
-                controller: titleController,
-                hint: 'Task title',
-                icon: Icons.task_alt_rounded,
-                autofocus: true,
-              ),
-              const SizedBox(height: 14),
-              _EditorInput(
-                controller: notesController,
-                hint: 'Notes or context',
-                icon: Icons.notes_rounded,
-                maxLines: 3,
-              ),
-              const SizedBox(height: 22),
-              FilledButton.icon(
-                onPressed: () {
-                  Navigator.pop(context, <String, String>{
-                    'title': titleController.text.trim(),
-                    'notes': notesController.text.trim(),
-                  });
-                },
-                icon: const Icon(Icons.check_rounded, size: 18),
-                label: const Text('Save Changes'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(52),
-                  shape: const StadiumBorder(),
-                  textStyle: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.08,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EditorInput extends StatelessWidget {
-  const _EditorInput({
-    required this.controller,
-    required this.hint,
-    required this.icon,
-    this.autofocus = false,
-    this.maxLines = 1,
-  });
-
-  final TextEditingController controller;
-  final String hint;
-  final IconData icon;
-  final bool autofocus;
-  final int maxLines;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      autofocus: autofocus,
-      maxLines: maxLines,
-      style: TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w600,
-        color: Theme.of(context).colorScheme.onSurface,
-      ),
-      decoration: InputDecoration(
-        prefixIcon: Icon(icon, color: Theme.of(context).colorScheme.primary),
-        hintText: hint,
-        hintStyle: const TextStyle(
-          color: Color(0xFF4B444D),
-          fontWeight: FontWeight.w500,
-        ),
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 20,
-          vertical: 18,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(maxLines > 1 ? 24 : 999),
-          borderSide: const BorderSide(color: Color(0xFFD8CEDA), width: 1.2),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(maxLines > 1 ? 24 : 999),
-          borderSide: const BorderSide(color: Color(0xFFD8CEDA), width: 1.2),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(maxLines > 1 ? 24 : 999),
-          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.8),
-        ),
-      ),
-    );
-  }
-}
-
-class _TopHeader extends StatelessWidget {
-  const _TopHeader({
-    required this.title,
-    required this.subtitle,
-    required this.onNotificationsTap,
-    required this.onProfileTap,
-  });
-
-  final String title;
-  final String subtitle;
-  final VoidCallback onNotificationsTap;
-  final VoidCallback onProfileTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      bottom: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 18, 24, 14),
-        child: Row(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title == 'Companion' ? 'Good Afternoon, ${context.watch<AppState>().profile?['display_name'] ?? context.watch<AppState>().profile?['wake_name'] ?? 'Friend'}' : title,
-                    style: const TextStyle(
-                      fontFamily: 'Manrope',
-                      fontSize: 28,
-                      height: 1.15,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.6,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF575C6B),
-                    ),
-                  ),
-                ],
+            const Text(
+              'Edit Task',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
               ),
             ),
-            _HeaderIconButton(
-              icon: Icons.notifications_none_rounded,
-              onTap: onNotificationsTap,
+            const SizedBox(height: 16),
+            TextField(
+              controller: titleController,
+              decoration: const InputDecoration(
+                labelText: 'Title',
+                border: OutlineInputBorder(),
+              ),
             ),
-            const SizedBox(width: 12),
-            _HeaderIconButton(
-              icon: Icons.account_circle_rounded,
-              onTap: onProfileTap,
+            const SizedBox(height: 12),
+            TextField(
+              controller: notesController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Notes',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AiPalTheme.primaryContainer,
+                    foregroundColor: AiPalTheme.onPrimaryContainer,
+                  ),
+                  onPressed: () {
+                    Navigator.pop(context, {
+                      'title': titleController.text,
+                      'notes': notesController.text,
+                    });
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
             ),
           ],
         ),
@@ -979,91 +893,66 @@ class _TopHeader extends StatelessWidget {
   }
 }
 
-class _HeaderIconButton extends StatelessWidget {
-  const _HeaderIconButton({required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white.withValues(alpha: 0.5),
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
-          ),
-          child: Icon(icon, color: const Color(0xFF4B444D)),
-        ),
-      ),
-    );
-  }
-}
-
+/// Floating Mobile Bottom Navigation Bar styled per reference HTML
 class _MobileBottomNav extends StatelessWidget {
-  const _MobileBottomNav({required this.currentIndex, required this.onTabTap});
+  const _MobileBottomNav({
+    required this.currentIndex,
+    required this.onTabTap,
+  });
 
   final int currentIndex;
   final ValueChanged<int> onTabTap;
 
   @override
   Widget build(BuildContext context) {
-    final index = currentIndex;
-
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 18),
-      decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.9),
-        border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.7)),
-        ),
+      decoration: const BoxDecoration(
+        color: AiPalTheme.background,
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF1A1F2C).withValues(alpha: 0.05),
-            blurRadius: 40,
-            offset: const Offset(0, -10),
+            color: Colors.black12,
+            blurRadius: 10,
+            offset: Offset(0, -2),
           ),
         ],
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _MobileNavItem(
-            index: 0,
-            currentIndex: index,
-            icon: Icons.graphic_eq_rounded,
-            label: 'Companion',
-            onTap: onTabTap,
-          ),
-          _MobileNavItem(
-            index: 1,
-            currentIndex: index,
-            icon: Icons.calendar_today_rounded,
-            label: 'Today',
-            onTap: onTabTap,
-          ),
-          _MobileNavItem(
-            index: 2,
-            currentIndex: index,
-            icon: Icons.notifications_none_rounded,
-            label: 'Notifications',
-            onTap: onTabTap,
-          ),
-          _MobileNavItem(
-            index: 3,
-            currentIndex: index,
-            icon: Icons.settings_rounded,
-            label: 'Settings',
-            onTap: onTabTap,
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _MobileNavItem(
+              index: 0,
+              currentIndex: currentIndex,
+              icon: Icons.smart_toy_rounded,
+              label: 'Companion',
+              onTap: onTabTap,
+            ),
+            _MobileNavItem(
+              index: 1,
+              currentIndex: currentIndex,
+              icon: Icons.calendar_today_rounded,
+              label: 'Today',
+              onTap: onTabTap,
+            ),
+            _MobileNavItem(
+              index: 2,
+              currentIndex: currentIndex,
+              icon: Icons.notifications_none_rounded,
+              label: 'Alerts',
+              onTap: onTabTap,
+            ),
+            _MobileNavItem(
+              index: 3,
+              currentIndex: currentIndex,
+              icon: Icons.settings_rounded,
+              label: 'Settings',
+              onTap: onTabTap,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1087,38 +976,38 @@ class _MobileNavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final active = index == currentIndex;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(999),
+    return GestureDetector(
       onTap: () => onTap(index),
+      behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        padding: EdgeInsets.symmetric(
-          horizontal: active ? 16 : 10,
-          vertical: 8,
-        ),
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         decoration: BoxDecoration(
           color: active
-              ? const Color(0xFFF4D9FF).withValues(alpha: 0.65)
+              ? AiPalTheme.primaryContainer
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(99),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               icon,
-              color: active ? Theme.of(context).colorScheme.primary : const Color(0xFF4B444D),
+              size: 20,
+              color: active
+                  ? AiPalTheme.onPrimaryContainer
+                  : AiPalTheme.onSurfaceVariant,
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 2),
             Text(
               label,
               style: TextStyle(
+                fontFamily: 'Inter',
                 fontSize: 11,
-                fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                fontWeight: active ? FontWeight.w600 : FontWeight.w500,
                 color: active
-                    ? const Color(0xFF583B6B)
-                    : const Color(0xFF4B444D),
+                    ? AiPalTheme.onPrimaryContainer
+                    : AiPalTheme.onSurfaceVariant,
               ),
             ),
           ],

@@ -38,6 +38,8 @@ async def update_preferences(db: AsyncSession, user_id: UUID, data: dict) -> Use
     row = await get_or_create_preferences(db, user_id)
     if data.get("voice_profile") and not data.get("tts_voice"):
         data["tts_voice"] = data["voice_profile"]
+    if data.get("tts_voice") and not data.get("voice_profile"):
+        data["voice_profile"] = data["tts_voice"]
     for key in (
         "proactive_enabled",
         "max_proactive_per_day",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, date, datetime
 from typing import Any
 
@@ -13,7 +14,7 @@ from .today_item_service import list_today_items, today_item_to_dict
 
 
 def _display_name(user: User) -> str:
-    return user.wake_name or user.display_name or user.email.split("@", 1)[0] or "friend"
+    return user.wake_name or user.display_name or ""
 
 
 def _time_of_day(now: datetime | None = None) -> str:
@@ -128,14 +129,15 @@ async def build_companion_home_context(db: AsyncSession, user: User) -> dict[str
 def _fallback_brief(context: dict[str, Any]) -> str:
     name = context["name"]
     time_of_day = context["time_of_day"]
+    greeting = f"Good {time_of_day}, {name}." if name else f"Good {time_of_day}."
     next_item = context.get("next_item") or {}
     if next_item:
         when = context.get("next_item_time") or "soon"
-        return f"Good {time_of_day}, {name}. Your next item is {next_item.get('title', 'something important')} at {when}. Want to prepare together?"
+        return f"{greeting} Your next item is {next_item.get('title', 'something important')} at {when}. Want to prepare together?"
     count = context.get("today_count", 0)
     if count:
-        return f"Good {time_of_day}, {name}. You have {count} thing{'s' if count != 1 else ''} on today. Want to sort the day together?"
-    return f"Good {time_of_day}, {name}. I’m here with you. What would feel useful to talk through first?"
+        return f"{greeting} You have {count} thing{'s' if count != 1 else ''} on today. Want to sort the day together?"
+    return f"{greeting} I’m here with you. What would feel useful to talk through first?"
 
 
 async def generate_companion_home_brief(db: AsyncSession, user: User) -> dict[str, Any]:
@@ -154,7 +156,10 @@ async def generate_companion_home_brief(db: AsyncSession, user: User) -> dict[st
         f"Recent context titles: {[item['title'] for item in context['recent_context']]}"
     )
     try:
-        brief = await generate_today_briefing(db, user, user_message=prompt)
+        brief = await asyncio.wait_for(
+            generate_today_briefing(db, user, user_message=prompt),
+            timeout=4.0,
+        )
         message = str(brief.get("message") or "").strip()
     except Exception:
         brief = {"source": "fallback"}

@@ -18,6 +18,13 @@ ROUTINE_TEMPLATES = {
     "errands": "Fit errands and quick wins into my afternoon.",
 }
 
+ROUTINE_TEMPLATE_OPTIONS = [
+    {"id": "plan_day", "label": "Plan day"},
+    {"id": "deep_work", "label": "Deep work"},
+    {"id": "break", "label": "Breaks"},
+    {"id": "errands", "label": "Errands"},
+]
+
 _TEMPLATE_TASKS = {
     "plan_day": [
         {"title": "Review priorities for the rest of today", "estimated_minutes": 15, "priority": 2, "category": "work"},

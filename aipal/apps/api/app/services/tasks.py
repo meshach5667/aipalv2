@@ -11,6 +11,14 @@ from .tool_policy import is_tool_allowed
 from ..timezone_util import user_local_today
 
 
+def _as_naive_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(UTC).replace(tzinfo=None)
+
+
 def _day_bounds(day: date) -> tuple[datetime, datetime]:
     start = datetime.combine(day, datetime.min.time())
     return start, start + timedelta(days=1)
@@ -26,7 +34,7 @@ def _task_on_day_clause(day: date):
 
 def _sort_key(task: Task) -> tuple:
     in_prog = 0 if task.status == "in_progress" else 1
-    due = task.due_at or datetime.max.replace(tzinfo=UTC)
+    due = _as_naive_utc(task.due_at) or datetime.max
     return (in_prog, due, task.sort_order, -task.priority, task.created_at)
 
 
@@ -220,6 +228,7 @@ def task_to_dict(task: Task, subtasks: list[Task] | None = None) -> dict:
 
 async def today_view(db: AsyncSession, user_id: uuid.UUID, day: date) -> TodayViewResponse:
     from ..schemas import TaskResponse, TodayItemResponse
+    from .suggest_day import ROUTINE_TEMPLATE_OPTIONS
     from .today_item_service import list_today_items, today_item_to_dict
 
     all_tasks = await list_tasks(db, user_id, day=day, top_level_only=True)
@@ -246,6 +255,34 @@ async def today_view(db: AsyncSession, user_id: uuid.UUID, day: date) -> TodayVi
         up_next=up_next,
         sections=TodaySections(now=now, upcoming=upcoming, completed=completed),
         today_items=today_items,
+        ui={
+            "title": "My Day",
+            "completion_label": "completed",
+            "progress_label": "Daily goal",
+            "streak_label": "day streak",
+            "review_tooltip": "Review",
+            "suggest_label": "Suggest",
+            "up_next_label": "Up next",
+            "start_focus_label": "Start focus",
+            "open_detail_label": "Details",
+            "agenda_title": "Agenda",
+            "empty_title": "No items for today",
+            "empty_description": "",
+            "companion_label": "Open Companion",
+            "focus_metrics_title": "Focus metrics",
+            "pending_label": "Pending",
+            "completed_label": "Completed",
+            "new_task_title": "New task",
+            "task_title_hint": "Title",
+            "task_notes_hint": "Notes",
+            "save_task_label": "Save",
+            "suggest_sheet_title": "Suggest day plan",
+            "suggest_sheet_description": "",
+            "review_title": "Review",
+            "defer_label": "Defer",
+            "go_live_label": "Go Live",
+            "templates": ROUTINE_TEMPLATE_OPTIONS,
+        },
     )
 
 

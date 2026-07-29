@@ -121,7 +121,11 @@ async def suggest_day(
     db: AsyncSession = Depends(get_db),
 ):
     extracted = await suggest_day_svc.suggest_day(db, user, template=body.template)
-    return SuggestDayResponse(plan_draft=_draft_to_schema(extracted))
+    plan_draft = _draft_to_schema(extracted)
+    return SuggestDayResponse(
+        plan_draft=plan_draft,
+        notice="Day plan suggested successfully." if plan_draft else "No day plan suggestion is ready yet.",
+    )
 
 
 @router.get("/today-view", response_model=TodayViewResponse)

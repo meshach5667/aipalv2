@@ -14,6 +14,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any, Literal
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -265,7 +266,7 @@ class ConversationManager:
         transcript: str,
         metrics: dict[str, Any],
     ) -> ConversationManagerResult:
-        fields = self._extract_meeting_fields(transcript, base={})
+        fields = self._extract_meeting_fields(transcript, base={}, timezone=user.timezone or "UTC")
         missing = self._missing_meeting_fields(fields)
         if missing:
             return await self._ask_for_missing_field(user, session_id, transcript, fields, "meeting", missing[0], metrics)
@@ -281,7 +282,12 @@ class ConversationManager:
         intent: str,
         metrics: dict[str, Any],
     ) -> ConversationManagerResult:
-        fields = self._extract_task_fields(transcript, base={}, item_type="reminder" if intent == "create_reminder" else "task")
+        fields = self._extract_task_fields(
+            transcript,
+            base={},
+            item_type="reminder" if intent == "create_reminder" else "task",
+            timezone=user.timezone or "UTC",
+        )
         missing = self._missing_task_fields(fields)
         if missing:
             return await self._ask_for_missing_field(user, session_id, transcript, fields, fields.get("type", "task"), missing[0], metrics)
@@ -300,10 +306,15 @@ class ConversationManager:
         kind = str(pending.get("kind") or "task")
         fields = dict(pending.get("fields") or {})
         if kind == "meeting":
-            fields = self._extract_meeting_fields(transcript, base=fields)
+            fields = self._extract_meeting_fields(transcript, base=fields, timezone=user.timezone or "UTC")
             missing = self._missing_meeting_fields(fields)
         else:
-            fields = self._extract_task_fields(transcript, base=fields, item_type=kind)
+            fields = self._extract_task_fields(
+                transcript,
+                base=fields,
+                item_type=kind,
+                timezone=user.timezone or "UTC",
+            )
             missing = self._missing_task_fields(fields)
         if missing:
             return await self._ask_for_missing_field(user, session_id, transcript, fields, kind, missing[0], metrics)
@@ -401,7 +412,7 @@ class ConversationManager:
         no_speech = float(metrics.get("stt_no_speech_probability", 0.0) or 0.0)
         return confidence >= settings.stt_min_confidence and no_speech <= settings.stt_max_no_speech_probability
 
-    def _extract_meeting_fields(self, text: str, *, base: dict[str, Any]) -> dict[str, Any]:
+    def _extract_meeting_fields(self, text: str, *, base: dict[str, Any], timezone: str = "UTC") -> dict[str, Any]:
         fields = dict(base)
         lower = text.lower()
         if not fields.get("title"):
@@ -409,10 +420,14 @@ class ConversationManager:
             fields["title"] = f"Meeting with {person}" if person else self._clean_title(text, fallback="Meeting")
             if person:
                 fields.setdefault("participants", [person])
-        when = parse_action_datetime(text)
-        date_hint = self._date_hint(text)
+        tz = self._zoneinfo(timezone)
+        when = parse_action_datetime(text, now=datetime.now(tz))
+        date_hint = self._date_hint(text, timezone=timezone)
         time_hint = self._time_hint(text)
-        if when is not None and ("date" not in fields or time_hint):
+        if fields.get("date") and time_hint and not date_hint:
+            day = date.fromisoformat(str(fields["date"]))
+            fields["start_time"] = datetime.combine(day, time(time_hint[0], time_hint[1]), tzinfo=tz).isoformat()
+        elif when is not None and ("date" not in fields or time_hint):
             fields["date"] = when.date().isoformat()
             if time_hint or re.search(r"\b(at|by)\s+\d", lower):
                 fields["start_time"] = when.isoformat()
@@ -420,7 +435,7 @@ class ConversationManager:
             fields["date"] = date_hint.isoformat()
         if time_hint and fields.get("date") and not fields.get("start_time"):
             day = date.fromisoformat(str(fields["date"]))
-            fields["start_time"] = datetime.combine(day, time(time_hint[0], time_hint[1]), tzinfo=UTC).isoformat()
+            fields["start_time"] = datetime.combine(day, time(time_hint[0], time_hint[1]), tzinfo=tz).isoformat()
         duration = self._duration_minutes(text)
         if duration:
             fields["duration_minutes"] = duration
@@ -429,18 +444,29 @@ class ConversationManager:
             fields["location"] = location
         return fields
 
-    def _extract_task_fields(self, text: str, *, base: dict[str, Any], item_type: str) -> dict[str, Any]:
+    def _extract_task_fields(
+        self,
+        text: str,
+        *,
+        base: dict[str, Any],
+        item_type: str,
+        timezone: str = "UTC",
+    ) -> dict[str, Any]:
         fields = dict(base)
         fields["type"] = fields.get("type") or item_type
         if not fields.get("title"):
             fields["title"] = self._task_title(text, item_type=item_type)
-        when = parse_action_datetime(text)
-        date_hint = self._date_hint(text)
+        tz = self._zoneinfo(timezone)
+        when = parse_action_datetime(text, now=datetime.now(tz))
+        date_hint = self._date_hint(text, timezone=timezone)
         time_hint = self._time_hint(text)
-        if when is not None:
+        if fields.get("date") and time_hint and not date_hint:
+            day = date.fromisoformat(str(fields["date"]))
+            fields["due_at"] = datetime.combine(day, time(time_hint[0], time_hint[1]), tzinfo=tz).isoformat()
+        elif when is not None:
             fields["due_at"] = when.isoformat()
         elif date_hint and time_hint:
-            fields["due_at"] = datetime.combine(date_hint, time(time_hint[0], time_hint[1]), tzinfo=UTC).isoformat()
+            fields["due_at"] = datetime.combine(date_hint, time(time_hint[0], time_hint[1]), tzinfo=tz).isoformat()
         elif date_hint:
             fields["date"] = date_hint.isoformat()
         if "urgent" in text.lower() or "important" in text.lower():
@@ -465,6 +491,8 @@ class ConversationManager:
             missing.append("title")
         if not fields.get("due_at") and not fields.get("date"):
             missing.append("date")
+        elif fields.get("date") and not fields.get("due_at"):
+            missing.append("time")
         return missing
 
     def _draft_payload(self, kind: str, fields: dict[str, Any], transcript: str) -> dict[str, Any]:
@@ -491,20 +519,21 @@ class ConversationManager:
 
     def _confirmation_summary(self, kind: str, fields: dict[str, Any]) -> str:
         if kind == "meeting":
+            meeting_when = self._format_date_time(fields.get("start_time") or fields.get("date"))
             return (
                 "Got it. Here’s what I have:\n\n"
                 f"Meeting: {fields.get('title', 'Meeting')}\n"
-                f"Date: {fields.get('date', 'Not specified')}\n"
-                f"Time: {self._format_time(fields.get('start_time'))}\n"
+                f"When: {meeting_when}\n"
                 f"Duration: {self._format_duration(fields.get('duration_minutes'))}\n"
                 f"Location: {fields.get('location') or 'Not specified'}\n\n"
                 "Should I save it?"
             )
         label = "Reminder" if kind == "reminder" else "Task"
+        when = self._format_date_time(fields.get("due_at") or fields.get("date"))
         return (
             "I’ve got this:\n\n"
             f"{label}: {fields.get('title', label)}\n"
-            f"When: {fields.get('due_at') or fields.get('date') or 'Not specified'}\n\n"
+            f"When: {when}\n\n"
             "Should I save it?"
         )
 
@@ -519,11 +548,18 @@ class ConversationManager:
         return {
             "title": "What should I call it?",
             "date": "When should I remind you?",
+            "time": "What time should I set it for?",
         }.get(field, "When should I set it for?")
 
-    def _date_hint(self, text: str) -> date | None:
+    def _zoneinfo(self, timezone: str) -> ZoneInfo:
+        try:
+            return ZoneInfo(timezone or "UTC")
+        except Exception:
+            return ZoneInfo("UTC")
+
+    def _date_hint(self, text: str, *, timezone: str = "UTC") -> date | None:
         lower = text.lower()
-        today = datetime.now(UTC).date()
+        today = datetime.now(self._zoneinfo(timezone)).date()
         if "tomorrow" in lower:
             return today + timedelta(days=1)
         if "today" in lower:
@@ -552,6 +588,18 @@ class ConversationManager:
                 hour += 12
             if ampm == "am" and hour == 12:
                 hour = 0
+            return hour, minute
+        if match := re.search(r"\b(?:at|by)\s+(\d{1,2})(?::(\d{2}))?\b", text, re.IGNORECASE):
+            hour = int(match.group(1))
+            minute = int(match.group(2) or 0)
+            if hour < 8:
+                hour += 12
+            return hour, minute
+        if match := re.fullmatch(r"\s*(\d{1,2})(?::(\d{2}))?\s*", text):
+            hour = int(match.group(1))
+            minute = int(match.group(2) or 0)
+            if hour < 8:
+                hour += 12
             return hour, minute
         return None
 
@@ -613,7 +661,27 @@ class ConversationManager:
         parsed = self._parse_dt(str(value)) if value else None
         if parsed is None:
             return "Not specified"
-        return parsed.strftime("%I:%M %p").lstrip("0")
+        return self._format_clock(parsed)
+
+    def _format_clock(self, value: datetime) -> str:
+        minute = value.minute
+        suffix = value.strftime("%p")
+        if minute == 0:
+            return f"{value.strftime('%I').lstrip('0')} {suffix}"
+        return value.strftime("%I:%M %p").lstrip("0")
+
+    def _format_date_time(self, value: Any) -> str:
+        if not value:
+            return "Not specified"
+        parsed = self._parse_dt(str(value))
+        if parsed is None:
+            try:
+                day = date.fromisoformat(str(value))
+                return day.strftime("%A, %B %-d, %Y")
+            except Exception:
+                return str(value)
+        day_text = parsed.strftime("%A, %B %-d, %Y")
+        return f"{day_text} at {self._format_clock(parsed)}"
 
     def _format_duration(self, value: Any) -> str:
         if not value:

@@ -11,8 +11,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../providers/app_state.dart';
 import '../services/calendar_service.dart';
 import '../services/notification_service.dart';
-import 'meetings_screen.dart';
 import 'life_map_screen.dart';
+import 'meetings_screen.dart';
 import 'planner_screen.dart';
 import 'project_rooms_screen.dart';
 import 'splash_screen.dart';
@@ -33,9 +33,10 @@ class SettingsScreen extends StatelessWidget {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Sign out of browser session?'),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: const Text('Sign out of session?'),
           content: const Text(
-            'This clears the saved web session so AiPal will ask for a fresh login next time.',
+            'This will clear your local web session. You will need to log in again next time.',
           ),
           actions: [
             TextButton(
@@ -43,6 +44,10 @@ class SettingsScreen extends StatelessWidget {
               child: const Text('Cancel'),
             ),
             FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFBA1A1A),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Sign out'),
             ),
@@ -62,257 +67,315 @@ class SettingsScreen extends StatelessWidget {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFAF9F5),
-      body: Stack(
-        children: [
-          const _SettingsAtmosphere(),
+      backgroundColor: const Color(0xFFFAF9F6),
+      body: CustomScrollView(
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            sliver: SliverToBoxAdapter(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 860),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header
+                      const Text(
+                        'Settings',
+                        style: TextStyle(
+                          fontFamily: 'Manrope',
+                          fontSize: 32,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1B1C1A),
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Manage your account, voice interactions, and connected workspaces.',
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: Color(0xFF6F7482),
+                        ),
+                      ),
+                      const SizedBox(height: 32),
 
-          Row(
-            children: [
-              Expanded(
-                child: CustomScrollView(
-                  slivers: [
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(40, 24, 40, 72),
-                      sliver: SliverList(
-                        delegate: SliverChildListDelegate([
-                          const _SectionLabel('Identity'),
-                          _GlassCard(
-                            child: Column(
-                              children: [
-                                _IdentityRow(
-                                  icon: Icons.mail_outline_rounded,
-                                  label: 'Registered Email',
-                                  value: email.isEmpty
-                                      ? 'No email found'
-                                      : email,
-                                ),
-                                const _SoftDivider(),
-                                _IdentityRow(
-                                  icon: Icons.waving_hand_rounded,
-                                  label: 'Wake name',
-                                  value: wakeName,
-                                ),
-                              ],
-                            ),
+                      // Identity
+                      const _SectionHeader(title: 'Identity'),
+                      _SettingsGroupCard(
+                        children: [
+                          _IdentityTile(
+                            icon: Icons.mail_outline_rounded,
+                            label: 'Registered Email',
+                            value: email.isEmpty ? 'No email registered' : email,
                           ),
-
-                          const SizedBox(height: 34),
-
-                          const _SectionLabel('Voice & Interaction'),
-                          _GlassCard(
-                            child: Column(
-                              children: [
-                                _SwitchSettingRow(
-                                  icon: Icons.record_voice_over_rounded,
-                                  title: 'Listen for "Hi Pal"',
-                                  subtitle: kIsWeb
-                                      ? 'On web, turn this on and say Hi Pal while Live is listening.'
-                                      : state.wakeWordError != null
-                                      ? state.wakeWordError!
-                                      : defaultTargetPlatform ==
-                                            TargetPlatform.android
-                                      ? 'Say Hi Pal anytime to start Live. Shows a listening notification while enabled.'
-                                      : 'On the Companion tab, say Hi Pal to start Live hands-free.',
-                                  value: state.wakeWordEnabled,
-                                  enabled: true,
-                                  isError: state.wakeWordError != null,
-                                  onChanged: (v) => state.setWakeWordEnabled(v),
-                                ),
-                                const _SoftDivider(),
-                                _SwitchSettingRow(
-                                  icon: Icons.notifications_active_outlined,
-                                  title: 'Check-in enabled',
-                                  subtitle:
-                                      'Allow AiPal to proactively check on your status.',
-                                  value: checkInEnabled,
-                                  onChanged: (v) => state.updateProfile({
-                                    'checkin_enabled': v,
-                                  }),
-                                ),
-                                const _SoftDivider(),
-                                const _VoiceChoiceRow(),
-                              ],
-                            ),
+                          const _SettingsDivider(),
+                          _IdentityTile(
+                            icon: Icons.waving_hand_rounded,
+                            label: 'Wake Name',
+                            value: wakeName,
                           ),
+                        ],
+                      ),
 
-                          const SizedBox(height: 34),
+                      const SizedBox(height: 36),
 
-                          const _SectionLabel('Life OS'),
-                          _ConnectivityCard(
+                      // Voice & Interaction
+                      const _SectionHeader(title: 'Voice & Interaction'),
+                      _SettingsGroupCard(
+                        children: [
+                          _SwitchTile(
+                            icon: Icons.record_voice_over_rounded,
+                            title: 'Listen for "Hi Pal"',
+                            subtitle: kIsWeb
+                                ? 'Enable this and say "Hi Pal" while Live is active.'
+                                : state.wakeWordError ??
+                                    (defaultTargetPlatform == TargetPlatform.android
+                                        ? 'Say "Hi Pal" anytime to start Live.'
+                                        : 'Say "Hi Pal" on the Companion tab to start Live hands-free.'),
+                            value: state.wakeWordEnabled,
+                            isError: state.wakeWordError != null,
+                            onChanged: (v) => state.setWakeWordEnabled(v),
+                          ),
+                          const _SettingsDivider(),
+                          _SwitchTile(
+                            icon: Icons.notifications_active_outlined,
+                            title: 'Proactive Check-ins',
+                            subtitle: 'Allow AiPal to proactively check in on your schedule and focus.',
+                            value: checkInEnabled,
+                            onChanged: (v) => state.updateProfile({'checkin_enabled': v}),
+                          ),
+                          const _SettingsDivider(),
+                          const _VoiceChoiceRow(),
+                        ],
+                      ),
+
+                      const SizedBox(height: 36),
+
+                      // Life OS Workspaces
+                      const _SectionHeader(title: 'Life OS Workspaces'),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final isWide = constraints.maxWidth > 560;
+
+                          final planner = _FeatureCard(
                             icon: Icons.view_timeline_rounded,
                             title: 'Planner Engine',
-                            subtitle:
-                                'Draft daily, weekly, monthly, and 90-day plans before adding them to Today.',
-                            action: 'Open planner',
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const PlannerScreen(),
-                                ),
-                              );
-                            },
-                          ),
+                            subtitle: 'Draft daily, weekly, monthly, and 90-day execution plans.',
+                            actionText: 'Open Planner',
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const PlannerScreen()),
+                            ),
+                          );
 
-                          const SizedBox(height: 16),
-                          _ConnectivityCard(
+                          final meetings = _FeatureCard(
                             icon: Icons.groups_rounded,
                             title: 'Meeting Assistant',
-                            subtitle:
-                                'Prepare for meetings, capture notes, and extract follow-ups.',
-                            action: 'Open meetings',
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const MeetingsScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          _ConnectivityCard(
+                            subtitle: 'Prepare agendas, capture live notes, and extract action items.',
+                            actionText: 'Open Meetings',
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const MeetingsScreen()),
+                            ),
+                          );
+
+                          final rooms = _FeatureCard(
                             icon: Icons.dashboard_customize_rounded,
                             title: 'Project Rooms',
-                            subtitle:
-                                'Founder workspaces for projects, risks, meetings, tasks, and memories.',
-                            action: 'Open rooms',
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const ProjectRoomsScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          _ConnectivityCard(
+                            subtitle: 'Workspaces for projects, risks, tasks, and team memories.',
+                            actionText: 'Open Rooms',
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const ProjectRoomsScreen()),
+                            ),
+                          );
+
+                          final lifeMap = _FeatureCard(
                             icon: Icons.map_rounded,
                             title: 'Life Map',
-                            subtitle:
-                                'See business, health, learning, relationships, and growth in one connected view.',
-                            action: 'Open map',
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const LifeMapScreen(),
-                                ),
-                              );
+                            subtitle: 'Connected view across health, business, growth, and relationships.',
+                            actionText: 'Open Life Map',
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const LifeMapScreen()),
+                            ),
+                          );
+
+                          if (!isWide) {
+                            return Column(
+                              children: [
+                                planner,
+                                const SizedBox(height: 14),
+                                meetings,
+                                const SizedBox(height: 14),
+                                rooms,
+                                const SizedBox(height: 14),
+                                lifeMap,
+                              ],
+                            );
+                          }
+
+                          return Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(child: planner),
+                                  const SizedBox(width: 14),
+                                  Expanded(child: meetings),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+                              Row(
+                                children: [
+                                  Expanded(child: rooms),
+                                  const SizedBox(width: 14),
+                                  Expanded(child: lifeMap),
+                                ],
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+
+                      const SizedBox(height: 36),
+
+                      // Connectivity
+                      const _SectionHeader(title: 'Integrations & Automation'),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final isWide = constraints.maxWidth > 560;
+
+                          final morningBrief = _FeatureCard(
+                            icon: Icons.update_rounded,
+                            title: 'Morning Brief',
+                            subtitle: 'Scheduled daily for 08:00 AM.',
+                            actionText: 'Reschedule',
+                            onTap: () => NotificationService.instance.scheduleMorningBrief(
+                              hour: 8,
+                              minute: 0,
+                            ),
+                          );
+
+                          final calendar = _FeatureCard(
+                            icon: Icons.calendar_month_rounded,
+                            title: 'Calendar Sync',
+                            subtitle: 'Import today\'s events from Google or Outlook.',
+                            badge: 'v2.1',
+                            actionText: 'Sync Now',
+                            onTap: () async {
+                              final events = await CalendarService().fetchTodayEvents();
+                              if (context.mounted && events.isNotEmpty) {
+                                final n = await context.read<AppState>().api.importCalendar(events);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      behavior: SnackBarBehavior.floating,
+                                      content: Text('Imported $n calendar events'),
+                                    ),
+                                  );
+                                }
+                              }
                             },
-                          ),
+                          );
 
-                          const SizedBox(height: 34),
+                          final spotify = _FeatureCard(
+                            icon: Icons.headphones_rounded,
+                            iconColor: const Color(0xFF1DB954),
+                            title: 'Spotify Integration',
+                            subtitle: 'Control media playback using voice controls.',
+                            badge: 'v2.1',
+                            actionText: 'Authorize',
+                            onTap: () async {
+                              final uri = Uri.parse('https://43.160.220.9.sslip.io/privacy-policy.html');
+                              await launchUrl(uri);
+                            },
+                          );
 
-                          const _SectionLabel('Connectivity'),
-                          LayoutBuilder(
-                            builder: (context, constraints) {
-                              final wide = constraints.maxWidth >= 760;
+                          if (!isWide) {
+                            return Column(
+                              children: [
+                                morningBrief,
+                                const SizedBox(height: 14),
+                                calendar,
+                                const SizedBox(height: 14),
+                                spotify,
+                              ],
+                            );
+                          }
 
-                              final morning = _ConnectivityCard(
-                                icon: Icons.update_rounded,
-                                title: 'Reschedule morning brief',
-                                subtitle: 'Currently scheduled for 08:00 AM.',
-                                action: 'Manage timing',
-                                onTap: () => NotificationService.instance
-                                    .scheduleMorningBrief(hour: 8, minute: 0),
-                              );
+                          return Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(child: morningBrief),
+                                  const SizedBox(width: 14),
+                                  Expanded(child: calendar),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+                              spotify,
+                            ],
+                          );
+                        },
+                      ),
 
-                              final calendar = _ConnectivityCard(
-                                icon: Icons.calendar_month_rounded,
-                                title: 'Import today\'s calendar',
-                                subtitle: 'Sync events from Google or Outlook.',
-                                action: 'Sync now',
-                                badge: 'v2.1',
-                                onTap: () async {
-                                  final events = await CalendarService()
-                                      .fetchTodayEvents();
+                      const SizedBox(height: 36),
 
-                                  if (context.mounted && events.isNotEmpty) {
-                                    final n = await context
-                                        .read<AppState>()
-                                        .api
-                                        .importCalendar(events);
-
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            'Imported $n calendar events',
+                      // Session / Auth
+                      if (kIsWeb) ...[
+                        const _SectionHeader(title: 'Account'),
+                        _SettingsGroupCard(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Row(
+                                children: [
+                                  const Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Browser Session',
+                                          style: TextStyle(
+                                            fontFamily: 'Manrope',
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF1B1C1A),
                                           ),
                                         ),
-                                      );
-                                    }
-                                  }
-                                },
-                              );
-
-                              final spotify = _ConnectivityCard(
-                                icon: Icons.headphones_rounded,
-                                iconColor: const Color(0xFF1DB954),
-                                title: 'Connect Spotify',
-                                subtitle:
-                                    'Control playback with voice commands.',
-                                action: 'Authorize Spotify',
-                                badge: 'v2.1',
-                                darkAction: true,
-                                onTap: () async {
-                                  final uri = Uri.parse(
-                                    'https://43.160.220.9.sslip.io/privacy-policy.html',
-                                  );
-                                  await launchUrl(uri);
-                                },
-                              );
-
-                              if (!wide) {
-                                return Column(
-                                  children: [
-                                    morning,
-                                    const SizedBox(height: 16),
-                                    calendar,
-                                    const SizedBox(height: 16),
-                                    spotify,
-                                  ],
-                                );
-                              }
-
-                              return Column(
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(child: morning),
-                                      const SizedBox(width: 24),
-                                      Expanded(child: calendar),
-                                    ],
+                                        SizedBox(height: 4),
+                                        Text(
+                                          'Sign out of your active browser session.',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Color(0xFF6F7482),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                  const SizedBox(height: 24),
-                                  spotify,
+                                  OutlinedButton(
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: const Color(0xFFBA1A1A),
+                                      side: const BorderSide(color: Color(0xFFFFDAD6)),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    onPressed: signOut,
+                                    child: const Text('Sign out'),
+                                  ),
                                 ],
-                              );
-                            },
-                          ),
-
-                          const SizedBox(height: 34),
-
-                          if (kIsWeb) ...[
-                            _AccountActionCard(
-                              title: 'Browser session',
-                              subtitle:
-                                  'Clear the saved web login and return to the sign-in flow.',
-                              action: 'Sign out',
-                              onTap: signOut,
+                              ),
                             ),
-                            const SizedBox(height: 20),
                           ],
+                        ),
+                        const SizedBox(height: 36),
+                      ],
 
-                          const _SettingsFooter(),
-                        ]),
-                      ),
-                    ),
-                  ],
+                      const _SettingsFooter(),
+                    ],
+                  ),
                 ),
               ),
-            ],
+            ),
           ),
         ],
       ),
@@ -320,21 +383,22 @@ class SettingsScreen extends StatelessWidget {
   }
 }
 
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text);
+// Section Header Widget
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title});
 
-  final String text;
+  final String title;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(left: 14, bottom: 14),
+      padding: const EdgeInsets.only(left: 4, bottom: 12),
       child: Text(
-        text.toUpperCase(),
+        title.toUpperCase(),
         style: const TextStyle(
           fontSize: 12,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 1.7,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.2,
           color: Color(0xFF6F5081),
         ),
       ),
@@ -342,40 +406,44 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-class _GlassCard extends StatelessWidget {
-  const _GlassCard({required this.child});
+// Container Card for grouping rows
+class _SettingsGroupCard extends StatelessWidget {
+  const _SettingsGroupCard({required this.children});
 
-  final Widget child;
+  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(48),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.40),
-            borderRadius: BorderRadius.circular(48),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.80)),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF1A1F2C).withValues(alpha: 0.04),
-                blurRadius: 60,
-                offset: const Offset(0, 30),
-              ),
-            ],
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFEFECE6)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x08000000),
+            blurRadius: 20,
+            offset: Offset(0, 8),
           ),
-          child: child,
-        ),
+        ],
       ),
+      child: Column(children: children),
     );
   }
 }
 
-class _IdentityRow extends StatelessWidget {
-  const _IdentityRow({
+class _SettingsDivider extends StatelessWidget {
+  const _SettingsDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Divider(height: 1, thickness: 1, color: Color(0xFFF3F0EA));
+  }
+}
+
+// Identity Display Row
+class _IdentityTile extends StatelessWidget {
+  const _IdentityTile({
     required this.icon,
     required this.label,
     required this.value,
@@ -387,49 +455,63 @@ class _IdentityRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _RoundIcon(icon: icon, background: const Color(0xFFE9E8E4)),
-        const SizedBox(width: 24),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF575C6B),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontFamily: 'Manrope',
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF1B1C1A),
-                ),
-              ),
-            ],
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5F3EF),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: const Color(0xFF6F5081), size: 22),
           ),
-        ),
-        const Icon(Icons.edit_rounded, color: Color(0xFFCEC3CE)),
-      ],
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF6F7482),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontFamily: 'Manrope',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1B1C1A),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.edit_outlined, size: 20),
+            color: const Color(0xFF9EA3B0),
+            onPressed: () {},
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _SwitchSettingRow extends StatelessWidget {
-  const _SwitchSettingRow({
+// Interactive Toggle Tile
+class _SwitchTile extends StatelessWidget {
+  const _SwitchTile({
     required this.icon,
     required this.title,
     required this.subtitle,
     required this.value,
     required this.onChanged,
-    this.enabled = true,
     this.isError = false,
   });
 
@@ -438,20 +520,24 @@ class _SwitchSettingRow extends StatelessWidget {
   final String subtitle;
   final bool value;
   final ValueChanged<bool> onChanged;
-  final bool enabled;
   final bool isError;
 
   @override
   Widget build(BuildContext context) {
-    return Opacity(
-      opacity: enabled ? 1 : 0.55,
+    return Padding(
+      padding: const EdgeInsets.all(20),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _RoundIcon(
-            icon: icon,
-            background: const Color(0xFFF4D9FF).withValues(alpha: 0.65),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF4D9FF).withOpacity(0.4),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: const Color(0xFF6F5081), size: 22),
           ),
-          const SizedBox(width: 24),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -460,33 +546,36 @@ class _SwitchSettingRow extends StatelessWidget {
                   title,
                   style: const TextStyle(
                     fontFamily: 'Manrope',
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
                     color: Color(0xFF1B1C1A),
                   ),
                 ),
-                const SizedBox(height: 5),
+                const SizedBox(height: 4),
                 Text(
                   subtitle,
                   style: TextStyle(
                     fontSize: 13,
                     height: 1.4,
-                    color: isError
-                        ? const Color(0xFFBA1A1A)
-                        : const Color(0xFF575C6B),
+                    color: isError ? const Color(0xFFBA1A1A) : const Color(0xFF6F7482),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 20),
-          _PremiumSwitch(value: value, enabled: enabled, onChanged: onChanged),
+          const SizedBox(width: 12),
+          Switch.adaptive(
+            value: value,
+            activeColor: const Color(0xFF6F5081),
+            onChanged: onChanged,
+          ),
         ],
       ),
     );
   }
 }
 
+// Dynamic Voice Selector
 class _VoiceChoiceRow extends StatefulWidget {
   const _VoiceChoiceRow();
 
@@ -500,74 +589,29 @@ class _VoiceChoiceRowState extends State<_VoiceChoiceRow> {
       'id': 'calm_female',
       'name': 'Calm Female',
       'style': 'Warm, calm, and steady',
-      'provider': 'local',
     },
     {
       'id': 'calm_male',
       'name': 'Calm Male',
       'style': 'Relaxed, grounded, and patient',
-      'provider': 'local',
     },
     {
       'id': 'coach',
       'name': 'Coach',
       'style': 'Direct, focused, and strategic',
-      'provider': 'local',
     },
     {
       'id': 'friendly',
       'name': 'Friendly',
       'style': 'Warm and friendly',
-      'provider': 'local',
-    },
-    {
-      'id': 'professional',
-      'name': 'Professional',
-      'style': 'Clear, concise, and composed',
-      'provider': 'local',
-    },
-    {
-      'id': 'builder',
-      'name': 'Builder',
-      'style': 'Startup-focused and execution-minded',
-      'provider': 'local',
-    },
-    {
-      'id': 'energetic',
-      'name': 'Energetic',
-      'style': 'Bright, upbeat, and conversational',
-      'provider': 'local',
-    },
-    {
-      'id': 'gentle',
-      'name': 'Gentle',
-      'style': 'Soft, reflective, and reassuring',
-      'provider': 'local',
     },
   ];
 
   String _selected = 'calm_female';
   List<Map<String, dynamic>> _voices = _fallbackVoices;
   bool _loading = true;
-  bool _saving = false;
   bool _previewing = false;
   final AudioPlayer _player = AudioPlayer();
-
-  bool _hasVoice(String id) => _voices.any((voice) => voice['id'] == id);
-
-  String _voiceName(String id) {
-    return _voices
-        .firstWhere(
-          (voice) => voice['id'] == id,
-          orElse: () => const {'name': 'Default'},
-        )['name']
-        .toString();
-  }
-
-  Map<String, dynamic> get _selectedVoice => _voices.firstWhere(
-    (voice) => voice['id'] == _selected,
-    orElse: () => _fallbackVoices.first,
-  );
 
   @override
   void initState() {
@@ -588,430 +632,255 @@ class _VoiceChoiceRowState extends State<_VoiceChoiceRow> {
         api.getCompanionPreferences(),
         api.getTtsVoices(),
       ]);
+
       final prefs = results[0] as Map<String, dynamic>;
       final voices = (results[1] as List<Map<String, dynamic>>)
-          .where((voice) => (voice['id']?.toString() ?? '').isNotEmpty)
+          .where((v) => (v['id']?.toString() ?? '').isNotEmpty)
           .toList();
+
       if (!mounted) return;
+
       setState(() {
-        if (voices.isNotEmpty) {
-          _voices = voices;
-        }
-        _selected =
-            prefs['voice_profile']?.toString() ??
-            prefs['tts_voice']?.toString() ??
-            'calm_female';
-        if (!_hasVoice(_selected)) {
-          _selected = 'calm_female';
-        }
+        if (voices.isNotEmpty) _voices = voices;
+        _selected = prefs['voice_profile']?.toString() ?? 'calm_female';
         _loading = false;
       });
     } catch (_) {
-      if (mounted) {
-        setState(() => _loading = false);
-      }
+      if (mounted) setState(() => _loading = false);
     }
   }
 
   Future<void> _save(String value) async {
-    setState(() {
-      _selected = value;
-      _saving = true;
-    });
+    setState(() => _selected = value);
     try {
       await context.read<AppState>().api.updateCompanionPreferences({
         'voice_profile': value,
         'tts_voice': value,
       });
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Voice changed to ${_voiceName(value)}')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _saving = false);
-      }
+    } catch (e) {
+      // Error handling
     }
   }
 
   Future<void> _preview() async {
-    final previewText = _selectedVoice['preview_text']?.toString().trim() ?? '';
-    if (previewText.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Voice preview is unavailable.')),
-      );
-      return;
-    }
     setState(() => _previewing = true);
     try {
       final response = await context.read<AppState>().api.tts(
-        previewText,
+        'Hello! I am your companion.',
         voice: _selected,
       );
       final audio = response['audio_base64'] as String?;
-      final mime = response['audio_mime'] as String? ?? 'audio/wav';
-      if (audio == null || audio.isEmpty) return;
-      await _player.stop();
-      await _player.play(BytesSource(base64Decode(audio), mimeType: mime));
-    } finally {
-      if (mounted) {
-        setState(() => _previewing = false);
+      if (audio != null && audio.isNotEmpty) {
+        await _player.stop();
+        await _player.play(BytesSource(base64Decode(audio)));
       }
+    } finally {
+      if (mounted) setState(() => _previewing = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    Widget controls({double? width}) {
-      return SizedBox(
-        width: width,
-        child: Row(
-          children: [
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                initialValue: _hasVoice(_selected) ? _selected : 'calm_female',
-                decoration: InputDecoration(
-                  isDense: true,
-                  filled: true,
-                  fillColor: Colors.white.withValues(alpha: 0.62),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
-                    borderSide: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.8),
-                    ),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
-                    borderSide: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.8),
-                    ),
-                  ),
-                ),
-                items: _voices
-                    .map(
-                      (voice) => DropdownMenuItem(
-                        value: voice['id'].toString(),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(voice['name']?.toString() ?? 'Voice'),
-                            Text(
-                              voice['style']?.toString() ?? '',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Color(0xFF6B6F7B),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                    .toList(),
-                selectedItemBuilder: (context) => _voices
-                    .map(
-                      (voice) => Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          voice['name']?.toString() ?? 'Voice',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: _loading || _saving
-                    ? null
-                    : (value) {
-                        if (value != null) {
-                          _save(value);
-                        }
-                      },
-              ),
-            ),
-            const SizedBox(width: 10),
-            IconButton.filledTonal(
-              onPressed: _loading || _saving || _previewing ? null : _preview,
-              icon: _previewing
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.play_arrow_rounded),
-              tooltip: 'Preview voice',
-            ),
-          ],
-        ),
-      );
-    }
-
-    final selectedVoice = _selectedVoice;
-    final fallbackNote = selectedVoice['fallback_note']?.toString() ?? '';
-    final distinct = selectedVoice['is_distinct_voice_supported'] == true;
-    final providerLabel = distinct
-        ? 'Distinct provider voice'
-        : (fallbackNote.isNotEmpty ? fallbackNote : 'Local fallback voice');
-    Widget controlsWithNote({double? width}) {
-      return SizedBox(
-        width: width,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            controls(),
-            const SizedBox(height: 8),
-            Text(
-              providerLabel,
-              style: const TextStyle(
-                fontSize: 11,
-                height: 1.35,
-                color: Color(0xFF6B6F7B),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    const label = Expanded(
+    return Padding(
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'AiPal voice',
-            style: TextStyle(
-              fontFamily: 'Manrope',
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF1B1C1A),
-            ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F3F1),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.spatial_audio_off_rounded, color: Color(0xFF2C6B60), size: 22),
+              ),
+              const SizedBox(width: 16),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Companion Voice',
+                      style: TextStyle(
+                        fontFamily: 'Manrope',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1B1C1A),
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Voice profile used for spoken responses.',
+                      style: TextStyle(fontSize: 13, color: Color(0xFF6F7482)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          SizedBox(height: 5),
-          Text(
-            'Choose the spoken voice used for greetings and replies.',
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.4,
-              color: Color(0xFF575C6B),
-            ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8F7F4),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFE5E2DC)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selected,
+                      isExpanded: true,
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                      items: _voices.map((v) {
+                        return DropdownMenuItem<String>(
+                          value: v['id'].toString(),
+                          child: Text(
+                            v['name']?.toString() ?? '',
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: _loading ? null : (v) => v != null ? _save(v) : null,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              IconButton.filledTonal(
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xFFF4D9FF).withOpacity(0.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                onPressed: _loading || _previewing ? null : _preview,
+                icon: _previewing
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.play_arrow_rounded, color: Color(0xFF6F5081)),
+              ),
+            ],
           ),
         ],
       ),
     );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 620) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(
-                children: [
-                  _RoundIcon(
-                    icon: Icons.spatial_audio_off_rounded,
-                    background: Color(0xFFE8F3F1),
-                  ),
-                  SizedBox(width: 24),
-                  label,
-                ],
-              ),
-              const SizedBox(height: 16),
-              controlsWithNote(),
-            ],
-          );
-        }
-
-        return Row(
-          children: [
-            const _RoundIcon(
-              icon: Icons.spatial_audio_off_rounded,
-              background: Color(0xFFE8F3F1),
-            ),
-            const SizedBox(width: 24),
-            label,
-            const SizedBox(width: 20),
-            controlsWithNote(width: 250),
-          ],
-        );
-      },
-    );
   }
 }
 
-class _PremiumSwitch extends StatelessWidget {
-  const _PremiumSwitch({
-    required this.value,
-    required this.onChanged,
-    this.enabled = true,
-  });
-
-  final bool value;
-  final bool enabled;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: enabled ? () => onChanged(!value) : null,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 260),
-        width: 52,
-        height: 28,
-        padding: const EdgeInsets.all(3),
-        decoration: BoxDecoration(
-          color: value ? const Color(0xFF6F5081) : const Color(0xFFDBDAD6),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: AnimatedAlign(
-          duration: const Duration(milliseconds: 260),
-          alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-          curve: Curves.easeOutCubic,
-          child: Container(
-            width: 22,
-            height: 22,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ConnectivityCard extends StatelessWidget {
-  const _ConnectivityCard({
+// Interactive Workspace / Connectivity Feature Card
+class _FeatureCard extends StatelessWidget {
+  const _FeatureCard({
     required this.icon,
     required this.title,
     required this.subtitle,
-    required this.action,
+    required this.actionText,
     required this.onTap,
     this.badge,
     this.iconColor,
-    this.darkAction = false,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
-  final String action;
+  final String actionText;
   final VoidCallback onTap;
   final String? badge;
   final Color? iconColor;
-  final bool darkAction;
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(48),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-        child: Material(
-          color: Colors.white.withValues(alpha: 0.40),
-          borderRadius: BorderRadius.circular(48),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(48),
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(48),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.80)),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF1A1F2C).withValues(alpha: 0.04),
-                    blurRadius: 60,
-                    offset: const Offset(0, 30),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        icon,
-                        size: 34,
-                        color: iconColor ?? const Color(0xFF6F5081),
-                      ),
-                      const Spacer(),
-                      if (badge != null)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 9,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF4D9FF),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            badge!,
-                            style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.9,
-                              color: Color(0xFF583B6B),
-                            ),
-                          ),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFEFECE6)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x06000000),
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(icon, size: 28, color: iconColor ?? const Color(0xFF6F5081)),
+                    const Spacer(),
+                    if (badge != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF4D9FF),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontFamily: 'Manrope',
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1B1C1A),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      height: 1.45,
-                      color: Color(0xFF575C6B),
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  if (darkAction)
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: onTap,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF2F312E),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 15),
-                          shape: const StadiumBorder(),
-                        ),
-                        child: Text(action),
-                      ),
-                    )
-                  else
-                    Row(
-                      children: [
-                        Text(
-                          action,
+                        child: Text(
+                          badge!,
                           style: const TextStyle(
+                            fontSize: 10,
                             fontWeight: FontWeight.w800,
                             color: Color(0xFF6F5081),
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        const Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 17,
-                          color: Color(0xFF6F5081),
-                        ),
-                      ],
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontFamily: 'Manrope',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1B1C1A),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.4,
+                    color: Color(0xFF6F7482),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Text(
+                      actionText,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF6F5081),
+                      ),
                     ),
-                ],
-              ),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 14,
+                      color: Color(0xFF6F5081),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),
@@ -1020,234 +889,52 @@ class _ConnectivityCard extends StatelessWidget {
   }
 }
 
-class _SettingsFooter extends StatelessWidget {
+// Clean App Footer
+class _SettingsFooter extends StatefulWidget {
   const _SettingsFooter();
 
   @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<PackageInfo>(
-      future: PackageInfo.fromPlatform(),
-      builder: (context, snapshot) {
-        final info = snapshot.data;
-
-        return Column(
-          children: [
-            const Divider(color: Color(0x33CEC3CE)),
-            const SizedBox(height: 34),
-            const Text(
-              'AiPal Intelligence Shell',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 2.4,
-                color: Color(0xFF575C6B),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              info != null
-                  ? 'Version ${info.version} (Build ${info.buildNumber})'
-                  : 'Loading version…',
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF4B444D),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Container(
-              constraints: const BoxConstraints(maxWidth: 520),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF4F4F0).withValues(alpha: 0.58),
-                borderRadius: BorderRadius.circular(32),
-              ),
-              child: const Text(
-                'AiPal is a supportive companion, not medical advice. Please consult with a healthcare professional for clinical needs.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 12.5,
-                  height: 1.45,
-                  color: Color(0xFF575C6B),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
+  State<_SettingsFooter> createState() => _SettingsFooterState();
 }
 
-class _AccountActionCard extends StatelessWidget {
-  const _AccountActionCard({
-    required this.title,
-    required this.subtitle,
-    required this.action,
-    required this.onTap,
-  });
+class _SettingsFooterState extends State<_SettingsFooter> {
+  String _version = '';
 
-  final String title;
-  final String subtitle;
-  final String action;
-  final VoidCallback onTap;
+  @override
+  void initState() {
+    super.initState();
+    PackageInfo.fromPlatform().then((info) {
+      if (mounted) {
+        setState(() {
+          _version = 'v${info.version} (${info.buildNumber})';
+        });
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(32),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-        child: Material(
-          color: Colors.white.withValues(alpha: 0.42),
-          borderRadius: BorderRadius.circular(32),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(32),
-            child: Container(
-              width: double.infinity,
-              constraints: const BoxConstraints(maxWidth: 520),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(32),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF1A1F2C).withValues(alpha: 0.04),
-                    blurRadius: 60,
-                    offset: const Offset(0, 30),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF1F0),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Icon(
-                      Icons.logout_rounded,
-                      color: Color(0xFFBA1A1A),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: const TextStyle(
-                            fontFamily: 'Manrope',
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1B1C1A),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          subtitle,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            height: 1.45,
-                            color: Color(0xFF575C6B),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    action,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFFBA1A1A),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(
-                    Icons.arrow_forward_rounded,
-                    size: 17,
-                    color: Color(0xFFBA1A1A),
-                  ),
-                ],
-              ),
+    return Center(
+      child: Column(
+        children: [
+          const Text(
+            'AiPal Life OS',
+            style: TextStyle(
+              fontFamily: 'Manrope',
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF9EA3B0),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RoundIcon extends StatelessWidget {
-  const _RoundIcon({required this.icon, required this.background});
-
-  final IconData icon;
-  final Color background;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 52,
-      height: 52,
-      decoration: BoxDecoration(shape: BoxShape.circle, color: background),
-      child: Icon(icon, color: const Color(0xFF6F5081), size: 28),
-    );
-  }
-}
-
-class _SoftDivider extends StatelessWidget {
-  const _SoftDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 20),
-      child: Divider(height: 1, color: Color(0x33CEC3CE)),
-    );
-  }
-}
-
-class _SettingsAtmosphere extends StatelessWidget {
-  const _SettingsAtmosphere();
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Container(color: const Color(0xFFFAF9F5)),
-        Positioned(
-          top: -180,
-          right: -120,
-          child: _Blob(color: const Color(0xFF6F5081).withValues(alpha: 0.08)),
-        ),
-        Positioned(
-          bottom: -180,
-          left: 180,
-          child: _Blob(color: const Color(0xFF326667).withValues(alpha: 0.08)),
-        ),
-      ],
-    );
-  }
-}
-
-class _Blob extends StatelessWidget {
-  const _Blob({required this.color});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 560,
-      height: 560,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        boxShadow: [BoxShadow(color: color, blurRadius: 140, spreadRadius: 90)],
+          const SizedBox(height: 4),
+          Text(
+            _version.isEmpty ? 'v2.1' : _version,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFFB5B9C4),
+            ),
+          ),
+        ],
       ),
     );
   }

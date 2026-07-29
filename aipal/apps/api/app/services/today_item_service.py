@@ -431,6 +431,17 @@ async def list_today_items(db: AsyncSession, user_id: uuid.UUID, day: date | Non
     return list(result.scalars().all())
 
 
+async def get_today_item(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    item_id: uuid.UUID,
+) -> TodayItem | None:
+    result = await db.execute(
+        select(TodayItem).where(TodayItem.user_id == user_id, TodayItem.id == item_id)
+    )
+    return result.scalar_one_or_none()
+
+
 async def list_range(db: AsyncSession, user_id: uuid.UUID, start_date: date, end_date: date) -> list[TodayItem]:
     start, _ = _day_bounds(start_date)
     _, end = _day_bounds(end_date)

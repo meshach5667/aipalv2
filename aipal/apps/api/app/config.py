@@ -1,10 +1,11 @@
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 
     database_url: str = "sqlite+aiosqlite:///./instance/app.db"
     database_path: str = "./instance/app.db"
@@ -43,8 +44,20 @@ class Settings(BaseSettings):
     whisper_beam_size: int = 5
     max_audio_decode_seconds: int = 12
     tts_provider: str = "edge"
+    speech_tts_provider: str = ""
     tts_timeout_seconds: float = 6.0
+    fish_api_key: str = ""
+    fish_audio_api_key: str = Field(default="", validation_alias="FISH_AUDIO_API_KEY")
+    fish_base_url: str = "https://api.fish.audio"
+    fish_audio_base_url: str = Field(default="", validation_alias="FISH_AUDIO_BASE_URL")
+    fish_tts_model: str = "s2-pro"
+    fish_audio_tts_model: str = Field(default="", validation_alias="FISH_AUDIO_TTS_MODEL")
+    fish_tts_reference_id: str = ""
+    fish_audio_voice_id: str = Field(default="", validation_alias="FISH_AUDIO_VOICE_ID")
+    fish_tts_latency: str = "normal"
+    fish_audio_asr_model: str = Field(default="", validation_alias="FISH_AUDIO_ASR_MODEL")
     stt_provider: str = "whisper_stream"
+    speech_stt_provider: str = ""
     whisper_stream_partial_interval_ms: int = 150
     stt_min_confidence: float = 0.28
     stt_max_no_speech_probability: float = 0.78
@@ -69,6 +82,36 @@ class Settings(BaseSettings):
     spotify_client_id: str = ""
     spotify_client_secret: str = ""
     spotify_redirect_uri: str = "aipal://spotify-callback"
+
+    @property
+    def effective_tts_provider(self) -> str:
+        provider = (self.speech_tts_provider or self.tts_provider or "edge").lower()
+        return "fish" if provider in {"fish_audio", "fish-audio"} else provider
+
+    @property
+    def effective_stt_provider(self) -> str:
+        provider = (self.speech_stt_provider or self.stt_provider or "whisper_stream").lower()
+        return "fish_audio" if provider in {"fish", "fish-audio"} else provider
+
+    @property
+    def effective_fish_api_key(self) -> str:
+        return self.fish_audio_api_key or self.fish_api_key
+
+    @property
+    def effective_fish_base_url(self) -> str:
+        return self.fish_audio_base_url or self.fish_base_url
+
+    @property
+    def effective_fish_tts_model(self) -> str:
+        return self.fish_audio_tts_model or self.fish_tts_model
+
+    @property
+    def effective_fish_asr_model(self) -> str:
+        return self.fish_audio_asr_model or "s1"
+
+    @property
+    def effective_fish_voice_id(self) -> str:
+        return self.fish_audio_voice_id or self.fish_tts_reference_id
 
 
 @lru_cache

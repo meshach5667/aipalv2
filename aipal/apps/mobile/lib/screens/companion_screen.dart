@@ -1,23 +1,42 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../config.dart';
 import '../providers/app_state.dart';
 import '../services/live_session.dart';
 import '../services/web_title.dart';
 import '../widgets/plan_draft_card.dart';
-import 'text_chat_screen.dart';
 
-const _background = Color(0xFFF7F7F8);
-const _surface = Color(0xFFFFFFFF);
-const _assistantBubble = Color(0xFFF4F4F5);
-const _primaryText = Color(0xFF111827);
-const _secondaryText = Color(0xFF6B7280);
-const _border = Color(0xFFE5E7EB);
-const _accent = Color(0xFF10A37F);
+// --- Palette Setup ---
+const Color _kBackground = Color(0xFFF9F9F9);
+const Color _kSurface = Color(0xFFFFFFFF);
+const Color _kSurfaceContainerLow = Color(0xFFF3F3F3);
+const Color _kSurfaceContainerHigh = Color(0xFFE8E8E8);
+const Color _kPrimaryContainer = Color(0xFFFFD600);
+const Color _kOnPrimaryContainer = Color(0xFF705D00);
+const Color _kOnSurface = Color(0xFF1A1C1C);
+const Color _kOnSurfaceVariant = Color(0xFF4D4632);
+const Color _kSecondaryText = Color(0xFF5F5E5E);
+const Color _kError = Color(0xFFBA1A1A);
+const Color _kOnError = Color(0xFFFFFFFF);
+const Color _kBorder = Color(0xFFE2E2E2);
+
+enum _CompanionMode { initial, text, voice }
+
+class _ChatMessage {
+  final String text;
+  final bool isUser;
+  final bool isPending;
+
+  _ChatMessage({
+    required this.text,
+    required this.isUser,
+    this.isPending = false,
+  });
+}
 
 class CompanionScreen extends StatefulWidget {
   const CompanionScreen({super.key});
@@ -30,11 +49,16 @@ class _CompanionScreenState extends State<CompanionScreen> {
   String? _lastWebTitle;
   String? _homeToken;
   Future<Map<String, dynamic>>? _homeFuture;
+  final ScrollController _scrollController = ScrollController();
+  final List<_ChatMessage> _messages = [];
+  bool _sendingText = false;
+
+  _CompanionMode _mode = _CompanionMode.initial;
+  LiveState _previousLiveState = LiveState.resting;
 
   @override
   void initState() {
     super.initState();
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         context.read<AppState>().syncWakeListener();
@@ -42,65 +66,20 @@ class _CompanionScreenState extends State<CompanionScreen> {
     });
   }
 
-  String _statusLabel(LiveState live) {
-    switch (live) {
-      case LiveState.resting:
-        return 'Ready';
-      case LiveState.listening:
-        return 'Listening';
-      case LiveState.thinking:
-        return 'Thinking';
-      case LiveState.speaking:
-        return 'Speaking';
-    }
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
-  String _helperText(AppState state, LiveState live) {
-    if (state.turnError != null) {
-      return 'Connection issue';
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
     }
-
-    if (kIsWeb && state.wakeWordEnabled) {
-      return live == LiveState.resting ? 'Wake word ready' : 'Wake word active';
-    }
-
-    if (state.checkinBanner != null && live == LiveState.resting) {
-      return state.checkinBanner!;
-    }
-
-    if (live == LiveState.speaking) {
-      return 'Interrupt anytime.';
-    }
-
-    if (live == LiveState.thinking) {
-      return 'Thinking';
-    }
-
-    if (live == LiveState.listening) {
-      return 'Listening';
-    }
-
-    return 'Voice ready';
-  }
-
-  String _sessionModeLabel(LiveState live, AppState state) {
-    if (state.turnError != null) return 'Need attention';
-
-    if (live == LiveState.resting) return 'Ready';
-
-    if (state.lastReply != null && state.lastReply!.trim().isNotEmpty) {
-      return 'AiPal is talking back';
-    }
-
-    return _statusLabel(live);
-  }
-
-  Future<void> _handleClose(AppState state) async {
-    if (state.liveSession.state != LiveState.resting) {
-      await state.toggleLive();
-    }
-
-    state.goToTab(1);
   }
 
   void _syncWebTitle(String title) {
@@ -117,77 +96,273 @@ class _CompanionScreenState extends State<CompanionScreen> {
     return _homeFuture!;
   }
 
-  void _openTextMode(BuildContext context, AppState state) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => TextChatScreen(sessionId: state.companionConversationId)));
+  Future<void> _handleSend(AppState state, String text) async {
+    final cleanText = text.trim();
+    if (cleanText.isEmpty || _sendingText) return;
+
+    setState(() {
+      _mode = _CompanionMode.text;
+      _sendingText = true;
+      _messages.add(_ChatMessage(text: cleanText, isUser: true));
+      _messages.add(
+        _ChatMessage(text: 'Thinking...', isUser: false, isPending: true),
+      );
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+
+    try {
+      final res = await state.sendTextTurn(cleanText);
+      final reply =
+          ((res['assistantMessage'] as String?) ?? (res['reply'] as String?))
+              ?.trim();
+      if (!mounted) return;
+      setState(() {
+        if (_messages.isNotEmpty && _messages.last.isPending) {
+          _messages.removeLast();
+        }
+        if (reply != null && reply.isNotEmpty) {
+          _messages.add(_ChatMessage(text: reply, isUser: false));
+        }
+        _sendingText = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        if (_messages.isNotEmpty && _messages.last.isPending) {
+          _messages.removeLast();
+        }
+        _messages.add(
+          _ChatMessage(
+            text:
+                state.turnError ??
+                'I could not send that. Check the connection and try again.',
+            isUser: false,
+          ),
+        );
+        _sendingText = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    }
+  }
+
+  void _handleMicTap(AppState state) {
+    setState(() {
+      _mode = _CompanionMode.voice;
+    });
+    unawaited(state.toggleLive());
+  }
+
+  Future<void> _confirmDraft(AppState state) async {
+    try {
+      await state.confirmPlanDraft();
+      if (!mounted) return;
+      setState(() {
+        _messages.add(_ChatMessage(text: 'Saved to Today.', isUser: false));
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Saved to Today')));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            state.turnError ??
+                'Could not save it. Check the API and try again.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _discardDraft(AppState state) async {
+    try {
+      await state.discardPlanDraft();
+      if (!mounted) return;
+      setState(() {
+        _messages.add(
+          _ChatMessage(
+            text: 'Okay, I left that draft out. Tell me what to change.',
+            isUser: false,
+          ),
+        );
+      });
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not discard the draft.')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<AppState>(
       builder: (context, state, _) {
-        final live = state.liveSession.state;
-        final isLive = live != LiveState.resting;
+        final liveState = state.liveSession.state;
+        final isLive = liveState != LiveState.resting;
+
+        // Sync mode accurately with state changes
+        if (liveState != _previousLiveState) {
+          if (isLive) {
+            _mode = _CompanionMode.voice;
+          } else if (_previousLiveState != LiveState.resting &&
+              _messages.isNotEmpty) {
+            _mode = _CompanionMode.text;
+          }
+          _previousLiveState = liveState;
+        }
+
         final webTitle = isLive ? 'Audio Call · AiPal' : 'Companion · AiPal';
         final homeFuture = _companionHomeFuture(state);
         _syncWebTitle(webTitle);
 
+        final voiceTranscript = state.lastTranscript?.trim();
+        final aiReply = state.lastReply?.trim();
+        final hasConversation =
+            _messages.isNotEmpty ||
+            (voiceTranscript != null && voiceTranscript.isNotEmpty) ||
+            (aiReply != null && aiReply.isNotEmpty) ||
+            state.pendingPlanDraft != null ||
+            state.turnError != null;
+
+        // Auto-scroll when streaming responses arrive
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+
+        final showOrb =
+            _mode == _CompanionMode.initial || _mode == _CompanionMode.voice;
+        final showHomePrompt =
+            _mode == _CompanionMode.initial && !hasConversation;
+
         return Scaffold(
-          backgroundColor: _background,
+          backgroundColor: _kBackground,
           body: SafeArea(
-            child: Column(
-              children: [
-                _CompanionAppBar(
-                  status: _statusLabel(live),
-                  live: live,
-                  onClose: () => unawaited(_handleClose(state)),
-                  onTextMode: () => _openTextMode(context, state),
-                ),
-                Expanded(
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 760),
-                      child: _ChatBody(
-                        state: state,
-                        live: live,
-                        homeFuture: homeFuture,
-                        helperText: _helperText(state, live),
-                        modeLabel: _sessionModeLabel(live, state),
-                        onHomeAction: (prompt) {
-                          unawaited(state.sendTextTurn(prompt));
-                        },
-                        onPlanDay: () {
-                          unawaited(state.sendTextTurn('Help me plan my day.'));
-                        },
-                        onReminder: () {
-                          unawaited(
-                            state.sendTextTurn('Help me create a reminder.'),
-                          );
-                        },
-                        onTalkIdea: () {
-                          unawaited(
-                            state.sendTextTurn(
-                              'I want to talk through an idea.',
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isCompact = constraints.maxWidth < 600;
+
+                return Column(
+                  children: [
+                    Expanded(
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 680),
+                          child: CustomScrollView(
+                            controller: _scrollController,
+                            physics: const BouncingScrollPhysics(
+                              parent: AlwaysScrollableScrollPhysics(),
                             ),
-                          );
-                        },
-                        onReviewTasks: () {
-                          unawaited(state.sendTextTurn('Review my tasks.'));
-                        },
-                        onOpenToday: () => state.goToTab(1),
+                            slivers: [
+                              SliverPadding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: isCompact ? 16 : 24,
+                                  vertical: 12,
+                                ),
+                                sliver: SliverList(
+                                  delegate: SliverChildListDelegate([
+                                    const SizedBox(height: 16),
+
+                                    // Voice & Initial Mode View
+                                    if (showOrb) ...[
+                                      Center(
+                                        child: _LuminousOrb(
+                                          isLive: isLive,
+                                          liveState: liveState,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 16),
+                                    ],
+
+                                    if (showHomePrompt) ...[
+                                      _CompanionLiveHome(
+                                        future: homeFuture,
+                                        onAction: (prompt) => unawaited(
+                                          _handleSend(state, prompt),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 20),
+                                    ],
+
+                                    // Render Text Chat History
+                                    for (final msg in _messages) ...[
+                                      _LuminousBubble(
+                                        text: msg.text,
+                                        isUser: msg.isUser,
+                                        isPending: msg.isPending,
+                                      ),
+                                      const SizedBox(height: 12),
+                                    ],
+
+                                    // Live Transcript Stream
+                                    if (voiceTranscript != null &&
+                                        voiceTranscript.isNotEmpty) ...[
+                                      _LuminousBubble(
+                                        text: voiceTranscript,
+                                        isUser: true,
+                                      ),
+                                      const SizedBox(height: 12),
+                                    ],
+
+                                    // AI Response Stream
+                                    if (aiReply != null &&
+                                        aiReply.isNotEmpty &&
+                                        (_messages.isEmpty ||
+                                            _messages.last.text != aiReply) &&
+                                        !showHomePrompt) ...[
+                                      _LuminousBubble(
+                                        text: aiReply,
+                                        isUser: false,
+                                      ),
+                                      const SizedBox(height: 12),
+                                    ],
+
+                                    if (state.turnError != null) ...[
+                                      _ErrorBadge(errorText: state.turnError!),
+                                      const SizedBox(height: 12),
+                                    ],
+
+                                    if (liveState == LiveState.resting &&
+                                        state.nextOpenTask != null) ...[
+                                      const SizedBox(height: 8),
+                                      _NextTaskChip(
+                                        title:
+                                            '${state.nextOpenTask!['title']}',
+                                        onTap: () => state.goToTab(1),
+                                      ),
+                                    ],
+
+                                    if (state.pendingPlanDraft != null) ...[
+                                      const SizedBox(height: 12),
+                                      PlanDraftCard(
+                                        draft: state.pendingPlanDraft!,
+                                        onConfirm: () =>
+                                            unawaited(_confirmDraft(state)),
+                                        onDiscard: () =>
+                                            unawaited(_discardDraft(state)),
+                                      ),
+                                    ],
+
+                                    const SizedBox(height: 24),
+                                  ]),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-                _BottomComposer(
-                  live: live,
-                  helperText: _helperText(state, live),
-                  onMicTap: () => unawaited(state.toggleLive()),
-                  onKeyboardTap: () => _openTextMode(context, state),
-                  onComposerTap: () => _openTextMode(context, state),
-                ),
-              ],
+                    _LuminousBottomComposer(
+                      live: liveState,
+                      onMicTap: () => _handleMicTap(state),
+                      isSending: _sendingText,
+                      onTextSubmitted: (text) =>
+                          unawaited(_handleSend(state, text)),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         );
@@ -196,127 +371,200 @@ class _CompanionScreenState extends State<CompanionScreen> {
   }
 }
 
-class _CompanionAppBar extends StatelessWidget {
-  const _CompanionAppBar({
-    required this.status,
-    required this.live,
-    required this.onClose,
-    required this.onTextMode,
-  });
+// --- Dynamic Animated Orb Component ---
+class _LuminousOrb extends StatefulWidget {
+  const _LuminousOrb({required this.isLive, required this.liveState});
 
-  final String status;
-  final LiveState live;
-  final VoidCallback onClose;
-  final VoidCallback onTextMode;
+  final bool isLive;
+  final LiveState liveState;
 
-  Color get _statusColor {
-    switch (live) {
-      case LiveState.listening:
-      case LiveState.speaking:
-        return _accent;
-      case LiveState.thinking:
-        return const Color(0xFF6366F1);
-      case LiveState.resting:
-        return _secondaryText;
-    }
+  @override
+  State<_LuminousOrb> createState() => _LuminousOrbState();
+}
+
+class _LuminousOrbState extends State<_LuminousOrb>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 66,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: const BoxDecoration(
-        color: _surface,
-        border: Border(bottom: BorderSide(color: _border)),
-      ),
-      child: Row(
-        children: [
-          _IconCircleButton(
-            icon: Icons.close_rounded,
-            tooltip: 'Close',
-            onTap: onClose,
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return CustomPaint(
+          size: const Size(200, 200),
+          painter: _OrbWavePainter(
+            animationValue: _controller.value,
+            liveState: widget.liveState,
           ),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text(
-                  'AiPal',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: _primaryText,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.2,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 7,
-                      height: 7,
-                      decoration: BoxDecoration(
-                        color: _statusColor,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      status,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: _statusColor,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          _IconCircleButton(
-            icon: Icons.edit_outlined,
-            tooltip: 'Text mode',
-            onTap: onTextMode,
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
 
-class _IconCircleButton extends StatelessWidget {
-  const _IconCircleButton({
+class _OrbWavePainter extends CustomPainter {
+  _OrbWavePainter({required this.animationValue, required this.liveState});
+
+  final double animationValue;
+  final LiveState liveState;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final baseRadius = size.width * 0.35;
+
+    final coreGradient = RadialGradient(
+      colors: [
+        _kPrimaryContainer.withValues(alpha: 0.9),
+        _kPrimaryContainer.withValues(alpha: 0.4),
+        _kPrimaryContainer.withValues(alpha: 0.0),
+      ],
+      stops: const [0.3, 0.7, 1.0],
+    );
+
+    final corePaint = Paint()
+      ..shader = coreGradient.createShader(
+        Rect.fromCircle(center: center, radius: baseRadius * 1.3),
+      );
+
+    canvas.drawCircle(center, baseRadius * 1.1, corePaint);
+
+    if (liveState == LiveState.listening) {
+      _drawListeningWaves(canvas, center, baseRadius);
+    } else if (liveState == LiveState.speaking) {
+      _drawSpeakingWaves(canvas, center, baseRadius);
+    } else if (liveState == LiveState.thinking) {
+      _drawThinkingPulse(canvas, center, baseRadius);
+    } else {
+      _drawRestingGlow(canvas, center, baseRadius);
+    }
+  }
+
+  void _drawListeningWaves(Canvas canvas, Offset center, double baseRadius) {
+    final wavePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..color = _kOnPrimaryContainer;
+
+    for (int i = 0; i < 3; i++) {
+      final progress = (animationValue + (i * 0.33)) % 1.0;
+      final radius = baseRadius + (progress * 45);
+      final alpha = (1.0 - progress).clamp(0.0, 1.0) * 0.7;
+
+      wavePaint.color = _kOnPrimaryContainer.withValues(alpha: alpha);
+      canvas.drawCircle(center, radius, wavePaint);
+    }
+  }
+
+  void _drawSpeakingWaves(Canvas canvas, Offset center, double baseRadius) {
+    final wavePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 3.5;
+
+    const int waveCount = 28;
+    const angleStep = (math.pi * 2) / waveCount;
+
+    for (int i = 0; i < waveCount; i++) {
+      final angle = i * angleStep;
+      final waveOffset = math.sin((animationValue * math.pi * 4) + (i * 0.5));
+      final height = 8 + (waveOffset.abs() * 22);
+
+      final startPoint = Offset(
+        center.dx + math.cos(angle) * (baseRadius * 0.85),
+        center.dy + math.sin(angle) * (baseRadius * 0.85),
+      );
+      final endPoint = Offset(
+        center.dx + math.cos(angle) * (baseRadius * 0.85 + height),
+        center.dy + math.sin(angle) * (baseRadius * 0.85 + height),
+      );
+
+      final alpha = 0.4 + (waveOffset.abs() * 0.6);
+      wavePaint.color = _kOnPrimaryContainer.withValues(alpha: alpha);
+      canvas.drawLine(startPoint, endPoint, wavePaint);
+    }
+  }
+
+  void _drawThinkingPulse(Canvas canvas, Offset center, double baseRadius) {
+    final pulseOffset = math.sin(animationValue * math.pi * 2) * 8;
+    final pulsePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0
+      ..color = _kOnPrimaryContainer.withValues(alpha: 0.6);
+
+    canvas.drawCircle(center, baseRadius + pulseOffset, pulsePaint);
+  }
+
+  void _drawRestingGlow(Canvas canvas, Offset center, double baseRadius) {
+    final restPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..color = _kOnPrimaryContainer.withValues(alpha: 0.25);
+
+    canvas.drawCircle(center, baseRadius + 4, restPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _OrbWavePainter oldDelegate) {
+    return oldDelegate.animationValue != animationValue ||
+        oldDelegate.liveState != liveState;
+  }
+}
+
+class _ActionPill extends StatelessWidget {
+  const _ActionPill({
     required this.icon,
-    required this.tooltip,
+    required this.label,
     required this.onTap,
   });
 
   final IconData icon;
-  final String tooltip;
+  final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: Colors.transparent,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: SizedBox(
-            width: 44,
-            height: 44,
-            child: Icon(icon, color: _primaryText, size: 22),
+    return Material(
+      color: _kSurfaceContainerLow,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: _kOnSurfaceVariant),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _kOnSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -324,100 +572,227 @@ class _IconCircleButton extends StatelessWidget {
   }
 }
 
-class _ChatBody extends StatelessWidget {
-  const _ChatBody({
-    required this.state,
-    required this.live,
-    required this.homeFuture,
-    required this.helperText,
-    required this.modeLabel,
-    required this.onHomeAction,
-    required this.onPlanDay,
-    required this.onReminder,
-    required this.onTalkIdea,
-    required this.onReviewTasks,
-    required this.onOpenToday,
+class _LuminousBubble extends StatelessWidget {
+  const _LuminousBubble({
+    required this.text,
+    required this.isUser,
+    this.isPending = false,
   });
 
-  final AppState state;
-  final LiveState live;
-  final Future<Map<String, dynamic>> homeFuture;
-  final String helperText;
-  final String modeLabel;
-  final ValueChanged<String> onHomeAction;
-  final VoidCallback onPlanDay;
-  final VoidCallback onReminder;
-  final VoidCallback onTalkIdea;
-  final VoidCallback onReviewTasks;
-  final VoidCallback onOpenToday;
+  final String text;
+  final bool isUser;
+  final bool isPending;
 
   @override
   Widget build(BuildContext context) {
-    final transcript = state.lastTranscript?.trim();
-    final reply = state.lastReply?.trim();
-    final hasTranscript =
-        AppConfig.showLiveTranscript &&
-        transcript != null &&
-        transcript.isNotEmpty;
-    final hasReply = reply != null && reply.isNotEmpty;
-    final showEmpty = !hasTranscript && !hasReply && live == LiveState.resting;
+    final screenWidth = MediaQuery.of(context).size.width;
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
-      physics: const BouncingScrollPhysics(),
-      children: [
-        _CompanionHomePanel(future: homeFuture, onAction: onHomeAction),
-        const SizedBox(height: 18),
-        if (showEmpty)
-          _EmptyConversationState(
-            onPlanDay: onPlanDay,
-            onReminder: onReminder,
-            onTalkIdea: onTalkIdea,
-            onReviewTasks: onReviewTasks,
-          )
-        else ...[
-          if (hasTranscript)
-            _MessageBubble(text: transcript, isUser: true, label: 'You'),
-          if (hasTranscript) const SizedBox(height: 14),
-          if (hasReply) ...[
-            _MessageBubble(text: reply, isUser: false, label: 'AiPal'),
-            const SizedBox(height: 12),
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        constraints: BoxConstraints(maxWidth: screenWidth * 0.8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isUser ? _kPrimaryContainer : _kSurface,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(20),
+            topRight: const Radius.circular(20),
+            bottomLeft: Radius.circular(isUser ? 20 : 4),
+            bottomRight: Radius.circular(isUser ? 4 : 20),
+          ),
+          border: isUser ? null : Border.all(color: _kBorder, width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
           ],
-          _VoiceStateBanner(live: live, mode: modeLabel, helper: helperText),
-          if (state.turnError != null) ...[
-            const SizedBox(height: 12),
-            _ErrorPanel(errorText: state.turnError!),
-          ],
-          const SizedBox(height: 16),
-          _SuggestedActionsCard(
-            onPlanDay: onPlanDay,
-            onReminder: onReminder,
-            onTalkIdea: onTalkIdea,
-            onReviewTasks: onReviewTasks,
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 15,
+            height: 1.4,
+            fontStyle: isPending ? FontStyle.italic : FontStyle.normal,
+            fontWeight: isPending ? FontWeight.w600 : FontWeight.w400,
+            color: isUser
+                ? _kOnPrimaryContainer
+                : isPending
+                ? _kSecondaryText
+                : _kOnSurface,
           ),
-        ],
-        if (live == LiveState.resting && state.nextOpenTask != null) ...[
-          const SizedBox(height: 16),
-          _NextTaskChip(
-            title: '${state.nextOpenTask!['title']}',
-            onTap: onOpenToday,
-          ),
-        ],
-        if (state.pendingPlanDraft != null) ...[
-          const SizedBox(height: 16),
-          PlanDraftCard(
-            draft: state.pendingPlanDraft!,
-            onConfirm: () => state.confirmPlanDraft(),
-            onDiscard: () => state.discardPlanDraft(),
-          ),
-        ],
-      ],
+        ),
+      ),
     );
   }
 }
 
-class _CompanionHomePanel extends StatelessWidget {
-  const _CompanionHomePanel({required this.future, required this.onAction});
+class _LuminousBottomComposer extends StatefulWidget {
+  const _LuminousBottomComposer({
+    required this.live,
+    required this.onMicTap,
+    required this.onTextSubmitted,
+    required this.isSending,
+  });
+
+  final LiveState live;
+  final VoidCallback onMicTap;
+  final ValueChanged<String> onTextSubmitted;
+  final bool isSending;
+
+  @override
+  State<_LuminousBottomComposer> createState() =>
+      _LuminousBottomComposerState();
+}
+
+class _LuminousBottomComposerState extends State<_LuminousBottomComposer> {
+  final TextEditingController _controller = TextEditingController();
+
+  void _submit() {
+    final text = _controller.text.trim();
+    if (text.isNotEmpty && !widget.isSending) {
+      widget.onTextSubmitted(text);
+      _controller.clear();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isListening =
+        widget.live == LiveState.listening || widget.live == LiveState.speaking;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        16,
+        12,
+        16,
+        MediaQuery.of(context).padding.bottom + 12,
+      ),
+      decoration: BoxDecoration(
+        color: _kBackground,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 680),
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: widget.onMicTap,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isListening ? _kError : _kPrimaryContainer,
+                    boxShadow: [
+                      BoxShadow(
+                        color: (isListening ? _kError : _kPrimaryContainer)
+                            .withValues(alpha: 0.3),
+                        blurRadius: 12,
+                        spreadRadius: 1,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.mic,
+                    size: 26,
+                    color: isListening ? _kOnError : _kOnPrimaryContainer,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  height: 52,
+                  padding: const EdgeInsets.only(left: 16, right: 6),
+                  decoration: BoxDecoration(
+                    color: _kSurface,
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(color: _kBorder, width: 1),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.02),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _controller,
+                          enabled: !widget.isSending,
+                          onSubmitted: (_) => _submit(),
+                          style: const TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 15,
+                            color: _kOnSurface,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: widget.isSending
+                                ? 'AiPal is thinking...'
+                                : "What's on your mind?",
+                            hintStyle: const TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 15,
+                              color: _kSecondaryText,
+                            ),
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: widget.isSending
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: _kOnPrimaryContainer,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.arrow_upward_rounded,
+                                color: _kOnPrimaryContainer,
+                                size: 22,
+                              ),
+                        onPressed: widget.isSending ? null : _submit,
+                        splashRadius: 20,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompanionLiveHome extends StatelessWidget {
+  const _CompanionLiveHome({required this.future, required this.onAction});
 
   final Future<Map<String, dynamic>> future;
   final ValueChanged<String> onAction;
@@ -428,647 +803,83 @@ class _CompanionHomePanel extends StatelessWidget {
       future: future,
       builder: (context, snapshot) {
         final data = snapshot.data;
-        final contextData =
-            (data?['context'] as Map?)?.cast<String, dynamic>() ?? {};
-        final nextItem = (contextData['next_item'] as Map?)
-            ?.cast<String, dynamic>();
-        final cards = (data?['cards'] as List? ?? [])
+        final homeMessage = data?['message']?.toString().trim();
+        final cards = ((data?['cards'] as List?) ?? const [])
             .whereType<Map>()
             .map((item) => item.cast<String, dynamic>())
             .toList();
-        final loading = snapshot.connectionState == ConnectionState.waiting;
-        final message = data?['message']?.toString().trim();
-        final hasMessage = message != null && message.isNotEmpty;
 
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: _surface,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: _border),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(
-                children: [
-                  Icon(Icons.auto_awesome_outlined, color: _accent, size: 18),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Companion Home',
-                      style: TextStyle(
-                        color: _primaryText,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
+        final displayText = snapshot.hasError
+            ? 'I could not load companion home. Check the backend connection and sign in again.'
+            : (homeMessage == null || homeMessage.isEmpty)
+            ? 'Loading your companion home...'
+            : homeMessage;
+
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12.0),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 220),
+                child: Text(
+                  displayText,
+                  key: ValueKey(displayText),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 22,
+                    height: 1.25,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.4,
+                    color: _kOnSurface,
                   ),
-                ],
+                ),
               ),
-              const SizedBox(height: 12),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 180),
-                child: loading
-                    ? const _HomeSkeleton()
-                    : hasMessage
-                    ? Text(
-                        message,
-                        key: ValueKey(message),
-                        style: const TextStyle(
-                          color: _primaryText,
-                          fontSize: 15.5,
-                          height: 1.45,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      )
-                    : const Text(
-                        'No companion brief available yet.',
-                        key: ValueKey('home-empty'),
-                        style: TextStyle(
-                          color: _secondaryText,
-                          fontSize: 14,
-                          height: 1.4,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-              ),
-              if (nextItem != null) ...[
-                const SizedBox(height: 12),
-                _NextHomeItem(item: nextItem),
-              ],
-              if (cards.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: cards.take(4).map((card) {
-                    return _HomeActionChip(
-                      card: card,
+            ),
+            if (cards.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final card in cards.take(4))
+                    _ActionPill(
+                      icon: _iconForCard(card['icon']?.toString()),
+                      label: card['title']?.toString() ?? '',
                       onTap: () {
-                        final prompt = card['prompt']?.toString();
-                        if (prompt != null && prompt.trim().isNotEmpty) {
-                          onAction(prompt.trim());
+                        final prompt = card['prompt']?.toString().trim();
+                        if (prompt != null && prompt.isNotEmpty) {
+                          onAction(prompt);
                         }
                       },
-                    );
-                  }).toList(),
-                ),
-              ],
+                    ),
+                ],
+              ),
             ],
-          ),
+          ],
         );
       },
     );
   }
-}
 
-class _HomeSkeleton extends StatelessWidget {
-  const _HomeSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      key: const ValueKey('home-loading'),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _SkeletonLine(width: MediaQuery.sizeOf(context).width * 0.58),
-        const SizedBox(height: 8),
-        const _SkeletonLine(width: 180),
-      ],
-    );
-  }
-}
-
-class _SkeletonLine extends StatelessWidget {
-  const _SkeletonLine({required this.width});
-
-  final double width;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 13,
-      width: width.clamp(80, 300),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEAEAEC),
-        borderRadius: BorderRadius.circular(999),
-      ),
-    );
-  }
-}
-
-class _NextHomeItem extends StatelessWidget {
-  const _NextHomeItem({required this.item});
-
-  final Map<String, dynamic> item;
-
-  @override
-  Widget build(BuildContext context) {
-    final title = item['title']?.toString() ?? 'Next item';
-    final type = item['type']?.toString() ?? 'Today';
-    final time = item['start_time']?.toString() ?? item['due_at']?.toString();
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7FAF9),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFDCEBE7)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.schedule_outlined, color: _accent, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              time == null ? title : '$title · ${_formatHomeDateTime(time)}',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: _primaryText,
-                fontSize: 13.5,
-                height: 1.35,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          _SmallPill(label: type),
-        ],
-      ),
-    );
-  }
-}
-
-class _HomeActionChip extends StatelessWidget {
-  const _HomeActionChip({required this.card, required this.onTap});
-
-  final Map<String, dynamic> card;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final title = card['title']?.toString() ?? 'Talk with AiPal';
-    return ActionChip(
-      backgroundColor: _surface,
-      side: const BorderSide(color: _border),
-      labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-      avatar: const Icon(Icons.add_comment_outlined, size: 16, color: _accent),
-      label: Text(
-        title,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          color: _primaryText,
-          fontSize: 12.5,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-      onPressed: onTap,
-    );
-  }
-}
-
-class _EmptyConversationState extends StatelessWidget {
-  const _EmptyConversationState({
-    required this.onPlanDay,
-    required this.onReminder,
-    required this.onTalkIdea,
-    required this.onReviewTasks,
-  });
-
-  final VoidCallback onPlanDay;
-  final VoidCallback onReminder;
-  final VoidCallback onTalkIdea;
-  final VoidCallback onReviewTasks;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 18),
-      child: Column(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: const BoxDecoration(
-              color: _primaryText,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.auto_awesome_rounded,
-              color: Colors.white,
-              size: 20,
-            ),
-          ),
-          const SizedBox(height: 18),
-          const Text(
-            'Voice companion',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: _primaryText,
-              fontSize: 25,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.7,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Start voice mode or open text chat. Assistant replies appear only after the backend returns them.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: _secondaryText,
-              fontSize: 14.5,
-              height: 1.45,
-            ),
-          ),
-          const SizedBox(height: 20),
-          _SuggestedActionsCard(
-            onPlanDay: onPlanDay,
-            onReminder: onReminder,
-            onTalkIdea: onTalkIdea,
-            onReviewTasks: onReviewTasks,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({
-    required this.text,
-    required this.isUser,
-    required this.label,
-  });
-
-  final String text;
-  final bool isUser;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width < 480 ? 320 : 560,
-        ),
-        child: Column(
-          crossAxisAlignment: isUser
-              ? CrossAxisAlignment.end
-              : CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-              child: Text(
-                label,
-                style: const TextStyle(
-                  color: _secondaryText,
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-              decoration: BoxDecoration(
-                color: isUser ? _primaryText : _assistantBubble,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(20),
-                  topRight: const Radius.circular(20),
-                  bottomLeft: Radius.circular(isUser ? 20 : 6),
-                  bottomRight: Radius.circular(isUser ? 6 : 20),
-                ),
-                border: isUser ? null : Border.all(color: _border),
-              ),
-              child: Text(
-                text,
-                style: TextStyle(
-                  color: isUser ? Colors.white : _primaryText,
-                  fontSize: 15.5,
-                  height: 1.48,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _VoiceStateBanner extends StatelessWidget {
-  const _VoiceStateBanner({
-    required this.live,
-    required this.mode,
-    required this.helper,
-  });
-
-  final LiveState live;
-  final String mode;
-  final String helper;
-
-  @override
-  Widget build(BuildContext context) {
-    final isActive = live != LiveState.resting;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: isActive ? const Color(0xFFCDECE4) : _border),
-      ),
-      child: Row(
-        children: [
-          _VoiceStateIcon(live: live),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  mode,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: _primaryText,
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  helper,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: _secondaryText,
-                    fontSize: 12.5,
-                    height: 1.35,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (live == LiveState.listening) const _ListeningWaveform(),
-          if (live == LiveState.thinking) const _ThinkingDots(),
-          if (live == LiveState.speaking) const _SmallPill(label: 'Interrupt'),
-        ],
-      ),
-    );
-  }
-}
-
-class _VoiceStateIcon extends StatelessWidget {
-  const _VoiceStateIcon({required this.live});
-
-  final LiveState live;
-
-  @override
-  Widget build(BuildContext context) {
-    final icon = switch (live) {
-      LiveState.listening => Icons.mic_rounded,
-      LiveState.thinking => Icons.more_horiz_rounded,
-      LiveState.speaking => Icons.graphic_eq_rounded,
-      LiveState.resting => Icons.radio_button_unchecked_rounded,
-    };
-
-    return Container(
-      width: 34,
-      height: 34,
-      decoration: BoxDecoration(
-        color: live == LiveState.resting
-            ? const Color(0xFFF3F4F6)
-            : const Color(0xFFE8F7F3),
-        shape: BoxShape.circle,
-      ),
-      child: Icon(
-        icon,
-        color: live == LiveState.resting ? _secondaryText : _accent,
-        size: 18,
-      ),
-    );
-  }
-}
-
-class _ListeningWaveform extends StatefulWidget {
-  const _ListeningWaveform();
-
-  @override
-  State<_ListeningWaveform> createState() => _ListeningWaveformState();
-}
-
-class _ListeningWaveformState extends State<_ListeningWaveform> {
-  bool _tall = false;
-  Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer.periodic(const Duration(milliseconds: 420), (_) {
-      if (mounted) {
-        setState(() => _tall = !_tall);
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final heights = _tall
-        ? const [10.0, 18.0, 26.0, 14.0]
-        : const [20.0, 12.0, 18.0, 26.0];
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (final height in heights)
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 320),
-            margin: const EdgeInsets.symmetric(horizontal: 2),
-            width: 3,
-            height: height,
-            decoration: BoxDecoration(
-              color: _accent,
-              borderRadius: BorderRadius.circular(999),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _ThinkingDots extends StatefulWidget {
-  const _ThinkingDots();
-
-  @override
-  State<_ThinkingDots> createState() => _ThinkingDotsState();
-}
-
-class _ThinkingDotsState extends State<_ThinkingDots> {
-  int _active = 0;
-  Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer.periodic(const Duration(milliseconds: 360), (_) {
-      if (mounted) {
-        setState(() => _active = (_active + 1) % 3);
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(3, (index) {
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
-          margin: const EdgeInsets.symmetric(horizontal: 2),
-          width: 6,
-          height: 6,
-          decoration: BoxDecoration(
-            color: index == _active ? _accent : const Color(0xFFD1D5DB),
-            shape: BoxShape.circle,
-          ),
-        );
-      }),
-    );
-  }
-}
-
-class _ErrorPanel extends StatelessWidget {
-  const _ErrorPanel({required this.errorText});
-
-  final String errorText;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF1F0),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFECACA)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
-            Icons.error_outline_rounded,
-            color: Color(0xFFB42318),
-            size: 18,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              errorText,
-              style: const TextStyle(
-                color: Color(0xFF912018),
-                fontSize: 13.5,
-                height: 1.4,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SuggestedActionsCard extends StatelessWidget {
-  const _SuggestedActionsCard({
-    required this.onPlanDay,
-    required this.onReminder,
-    required this.onTalkIdea,
-    required this.onReviewTasks,
-  });
-
-  final VoidCallback onPlanDay;
-  final VoidCallback onReminder;
-  final VoidCallback onTalkIdea;
-  final VoidCallback onReviewTasks;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        _PromptChip(
-          icon: Icons.calendar_today_outlined,
-          label: 'Plan my day',
-          onTap: onPlanDay,
-        ),
-        _PromptChip(
-          icon: Icons.notifications_none_rounded,
-          label: 'Create a reminder',
-          onTap: onReminder,
-        ),
-        _PromptChip(
-          icon: Icons.lightbulb_outline_rounded,
-          label: 'Talk through an idea',
-          onTap: onTalkIdea,
-        ),
-        _PromptChip(
-          icon: Icons.checklist_rounded,
-          label: 'Review my tasks',
-          onTap: onReviewTasks,
-        ),
-      ],
-    );
-  }
-}
-
-class _PromptChip extends StatelessWidget {
-  const _PromptChip({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return ActionChip(
-      backgroundColor: _surface,
-      side: const BorderSide(color: _border),
-      avatar: Icon(icon, size: 17, color: _accent),
-      label: Text(
-        label,
-        style: const TextStyle(
-          color: _primaryText,
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-      onPressed: onTap,
-    );
+  IconData _iconForCard(String? icon) {
+    switch (icon) {
+      case 'event_note':
+        return Icons.event_note_outlined;
+      case 'auto_stories':
+        return Icons.auto_stories_outlined;
+      case 'center_focus_strong':
+        return Icons.center_focus_strong_outlined;
+      case 'emoji_events':
+        return Icons.emoji_events_outlined;
+      case 'forum':
+        return Icons.forum_outlined;
+      case 'calendar_today':
+        return Icons.calendar_today_outlined;
+      default:
+        return Icons.bolt_outlined;
+    }
   }
 }
 
@@ -1080,223 +891,62 @@ class _NextTaskChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: ActionChip(
-        backgroundColor: _surface,
-        side: const BorderSide(color: _border),
-        avatar: const Icon(
-          Icons.arrow_forward_rounded,
-          size: 16,
-          color: _accent,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: _kSurfaceContainerHigh,
+          borderRadius: BorderRadius.circular(12),
         ),
-        label: Text(
-          'Up next: $title',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-        onPressed: onTap,
-      ),
-    );
-  }
-}
-
-class _BottomComposer extends StatelessWidget {
-  const _BottomComposer({
-    required this.live,
-    required this.helperText,
-    required this.onMicTap,
-    required this.onKeyboardTap,
-    required this.onComposerTap,
-  });
-
-  final LiveState live;
-  final String helperText;
-  final VoidCallback onMicTap;
-  final VoidCallback onKeyboardTap;
-  final VoidCallback onComposerTap;
-
-  bool get _isLive => live != LiveState.resting;
-
-  @override
-  Widget build(BuildContext context) {
-    final bottomPadding = MediaQuery.paddingOf(context).bottom;
-
-    return Container(
-      padding: EdgeInsets.fromLTRB(12, 10, 12, 10 + bottomPadding),
-      decoration: const BoxDecoration(
-        color: _surface,
-        border: Border(top: BorderSide(color: _border)),
-      ),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: _background,
-                  borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: _border),
-                ),
-                padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
-                child: Row(
-                  children: [
-                    _ComposerButton(
-                      icon: Icons.keyboard_rounded,
-                      tooltip: 'Open text chat',
-                      onTap: onKeyboardTap,
-                    ),
-                    Expanded(
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(22),
-                        onTap: onComposerTap,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 12,
-                          ),
-                          child: Text(
-                            _isLive ? helperText : 'Message AiPal',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: _isLive ? _primaryText : _secondaryText,
-                              fontSize: 15,
-                              fontWeight: _isLive
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    _VoiceActionButton(live: live, onTap: onMicTap),
-                  ],
+        child: Row(
+          children: [
+            const Icon(Icons.task_alt, color: _kOnPrimaryContainer, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Next: $title',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _kOnSurface,
                 ),
               ),
-              if (_isLive) ...[
-                const SizedBox(height: 8),
-                Text(
-                  live == LiveState.speaking
-                      ? 'Speaking. Interrupt anytime.'
-                      : 'Live voice is on.',
-                  style: const TextStyle(
-                    color: _secondaryText,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ],
-          ),
+            ),
+            const Icon(Icons.chevron_right, color: _kSecondaryText, size: 18),
+          ],
         ),
       ),
     );
   }
 }
 
-class _ComposerButton extends StatelessWidget {
-  const _ComposerButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
+class _ErrorBadge extends StatelessWidget {
+  const _ErrorBadge({required this.errorText});
 
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: Colors.transparent,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: SizedBox(
-            width: 42,
-            height: 42,
-            child: Icon(icon, color: _secondaryText, size: 22),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _VoiceActionButton extends StatelessWidget {
-  const _VoiceActionButton({required this.live, required this.onTap});
-
-  final LiveState live;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final isLive = live != LiveState.resting;
-    final icon = isLive ? Icons.stop_rounded : Icons.mic_rounded;
-
-    return Tooltip(
-      message: isLive ? 'Stop live voice' : 'Start live voice',
-      child: Material(
-        color: isLive ? _primaryText : _accent,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: SizedBox(
-            width: 42,
-            height: 42,
-            child: Icon(icon, color: Colors.white, size: 23),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SmallPill extends StatelessWidget {
-  const _SmallPill({required this.label});
-
-  final String label;
+  final String errorText;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFE8F7F3),
-        borderRadius: BorderRadius.circular(999),
+        color: _kError.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+        errorText,
         style: const TextStyle(
-          color: Color(0xFF08785E),
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
+          fontFamily: 'Inter',
+          color: _kError,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
   }
-}
-
-String _formatHomeDateTime(String value) {
-  final parsed = DateTime.tryParse(value);
-  if (parsed == null) return value;
-  final hour = parsed.hour == 0
-      ? 12
-      : parsed.hour > 12
-      ? parsed.hour - 12
-      : parsed.hour;
-  final minute = parsed.minute.toString().padLeft(2, '0');
-  final suffix = parsed.hour >= 12 ? 'PM' : 'AM';
-  return '$hour:$minute $suffix';
 }

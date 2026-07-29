@@ -151,6 +151,23 @@ def _agenda_confirmation_draft(
     }
 
 
+def _task_detail_clarification(text: str) -> str | None:
+    lower = text.lower()
+    if not any(word in lower for word in ("task", "add", "remind", "schedule", "todo", "to-do")):
+        return None
+    if any(word in lower for word in ("done", "finished", "completed", "mark complete", "mark done")):
+        return "Which task did you finish? I will only mark it done after you confirm it is complete."
+    has_time = re.search(r"\b\d{1,2}(:\d{2})?\s*(am|pm)?\b", lower) is not None
+    has_date = any(word in lower for word in ("today", "tomorrow", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"))
+    has_sensitivity = any(word in lower for word in ("low sensitivity", "normal sensitivity", "high sensitivity", "sensitive"))
+    if not (has_date and has_time and has_sensitivity):
+        return (
+            "Before I create it, send the task name, description, date, time, whether you want a reminder, "
+            "location, tag, sensitivity, and any image/document/file references."
+        )
+    return None
+
+
 def _should_surface_commitments(message: str, mode: str, emotion: str, due_commitments: list[object]) -> bool:
     if mode not in {"companion", "coach", "reflection"}:
         return False
@@ -552,7 +569,7 @@ async def _run_turn_impl(
 
     agenda_action: str | None = None
     direct_agenda_draft_payload: dict[str, Any] | None = None
-    agenda_clarification = ambiguous_agenda_request(text)
+    agenda_clarification = ambiguous_agenda_request(text) or _task_detail_clarification(text)
     reminder_request = extract_reminder_request(text)
     meeting_request = extract_meeting_request(text)
     lower_text = text.lower()
@@ -747,6 +764,23 @@ async def _run_turn_impl(
     reply = _clean_user_facing_reply(str(response_payload["reply"]))
     if not reply:
         reply = "I hear you. Say that one more time in your own words, and I’ll stay with the thread."
+    if agenda_action and plan_draft_payload and plan_draft_payload.get("proposed_tasks"):
+        proposed = plan_draft_payload.get("proposed_tasks") or []
+        first = proposed[0] if proposed else {}
+        title = str(first.get("title") or "that item")
+        due_at = str(first.get("due_at") or "")
+        intent = str(plan_draft_payload.get("intent") or "")
+        if "meeting" in intent:
+            kind = "meeting"
+        elif "reminder" in intent:
+            kind = "reminder"
+        else:
+            kind = "task"
+        reply = (
+            f"I drafted the {kind}: {title}"
+            f"{f' for {due_at}' if due_at else ''}. "
+            "Review it below, then save it to Today or tell me what to change."
+        )
 
     suggested_actions = _suggested_actions_for(
         mode,

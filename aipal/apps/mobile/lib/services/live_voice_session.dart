@@ -30,12 +30,13 @@ class LiveVoiceSession {
     required this.onMessage,
     this.onSpeechStart,
     this.isSpeakingForVad,
-    this.silenceMs = 1800,
-    this.maxSegmentMs = 14000,
-    this.thresholdDb = -46.0,
-    this.thresholdDbSpeaking = -44.0,
-    this.bargeInThresholdDb = -34.0,
-    this.immediateBargeInThresholdDb = -24.0,
+    this.silenceMs = 1500,
+    this.maxSegmentMs = 12000,
+    this.thresholdDb = -36.0,
+    this.noiseGateDb = -46.0,
+    this.speechStartMs = 400,
+    this.bargeInThresholdDb = -18.0,
+    this.bargeInMs = 240,
   });
 
   final LiveVoiceMessageHandler onMessage;
@@ -44,9 +45,10 @@ class LiveVoiceSession {
   final int silenceMs;
   final int maxSegmentMs;
   final double thresholdDb;
-  final double thresholdDbSpeaking;
+  final double noiseGateDb;
+  final int speechStartMs;
   final double bargeInThresholdDb;
-  final double immediateBargeInThresholdDb;
+  final int bargeInMs;
 
   static const _tickMs = 80;
   static const _uuid = Uuid();
@@ -63,8 +65,9 @@ class LiveVoiceSession {
   int _silenceAccumMs = 0;
   int _segmentStartedAt = 0;
   int _dynamicSilenceMs = 800;
-  bool _speaking = false;
+  int _speechAccumMs = 0;
   int _bargeInAccumMs = 0;
+  bool _speaking = false;
   final Set<String> _playedChunks = <String>{};
   String? _activePlaybackTurnId;
   VoiceRuntimeState _runtimeState = VoiceRuntimeState.idle;
@@ -92,6 +95,10 @@ class LiveVoiceSession {
       onIdle: () {
         _speaking = false;
         _activePlaybackTurnId = null;
+        if (_active) {
+          _setState(VoiceRuntimeState.listening);
+          onMessage({'type': 'state', 'state': 'listening'});
+        }
       },
     );
     _channel = WebSocketChannel.connect(Uri.parse(AppConfig.wsUrl(token)));
@@ -130,8 +137,9 @@ class LiveVoiceSession {
     sessionId = null;
     _currentTurnId = null;
     _inSegment = false;
-    _speaking = false;
+    _speechAccumMs = 0;
     _bargeInAccumMs = 0;
+    _speaking = false;
     _playedChunks.clear();
     _activePlaybackTurnId = null;
     _setState(VoiceRuntimeState.idle);
@@ -154,6 +162,7 @@ class LiveVoiceSession {
     _speaking = false;
     _currentTurnId = _uuid.v4();
     _serverTurnId = null;
+    _speechAccumMs = 0;
     _bargeInAccumMs = 0;
     _playedChunks.clear();
     _activePlaybackTurnId = null;
@@ -181,12 +190,14 @@ class LiveVoiceSession {
   void _onPcmFrame(Uint8List bytes) {
     if (!_active || _channel == null) return;
     if (!_inSegment) return;
+    final cleanBytes = _applyNoiseGate(bytes);
+    if (cleanBytes == null) return;
     final turnId = _currentTurnId ??= _uuid.v4();
     _channel!.sink.add(
       jsonEncode({
         'type': 'audio_frame',
         'turn_id': turnId,
-        'data': base64Encode(bytes),
+        'data': base64Encode(cleanBytes),
       }),
     );
   }
@@ -240,6 +251,7 @@ class LiveVoiceSession {
       _speaking = false;
       _currentTurnId = null;
       _serverTurnId = null;
+      _speechAccumMs = 0;
       _bargeInAccumMs = 0;
       _playedChunks.clear();
       _activePlaybackTurnId = null;
@@ -281,41 +293,39 @@ class LiveVoiceSession {
         _speaking ||
         (_playback?.isPlaying ?? false) ||
         (isSpeakingForVad?.call() ?? false);
-    final threshold = aiSpeaking ? thresholdDbSpeaking : thresholdDb;
-    var speaking = amp.current > threshold;
+
     if (aiSpeaking) {
-      if (amp.current > immediateBargeInThresholdDb) {
-        developer.log(
-          'barge_in_immediate db=${amp.current.toStringAsFixed(1)}',
-          name: 'aipal.voice',
-        );
-        if (!_inSegment) {
-          sendInterrupt();
-          _startSpeechSegment();
-        }
-        return;
-      }
+      _silenceAccumMs = 0;
+      _speechAccumMs = 0;
       if (amp.current > bargeInThresholdDb) {
         _bargeInAccumMs += _tickMs;
       } else {
         _bargeInAccumMs = 0;
       }
-      speaking = _bargeInAccumMs >= _tickMs;
-    } else {
-      _bargeInAccumMs = 0;
+      if (_bargeInAccumMs >= bargeInMs && !_inSegment) {
+        sendInterrupt();
+        _startSpeechSegment();
+        return;
+      }
+      _setState(VoiceRuntimeState.speaking, turnId: _serverTurnId);
+      return;
     }
 
+    _bargeInAccumMs = 0;
+    final speaking = amp.current > thresholdDb;
     if (speaking) {
       _silenceAccumMs = 0;
+      _speechAccumMs += _tickMs;
       if (!_inSegment) {
-        final wasSpeaking = _speaking || (_playback?.isPlaying ?? false);
-        if (wasSpeaking) {
-          sendInterrupt();
+        if (_speechAccumMs >= speechStartMs) {
+          _startSpeechSegment();
         }
-        _startSpeechSegment();
       }
     } else if (_inSegment) {
+      _speechAccumMs = 0;
       _silenceAccumMs += _tickMs;
+    } else {
+      _speechAccumMs = 0;
     }
 
     if (_inSegment) {
@@ -329,6 +339,8 @@ class LiveVoiceSession {
   void _startSpeechSegment() {
     _inSegment = true;
     _silenceAccumMs = 0;
+    _speechAccumMs = 0;
+    _bargeInAccumMs = 0;
     _segmentStartedAt = DateTime.now().millisecondsSinceEpoch;
     _currentTurnId ??= _uuid.v4();
     _setState(VoiceRuntimeState.userSpeaking, turnId: _currentTurnId);
@@ -342,6 +354,8 @@ class LiveVoiceSession {
     if (!_inSegment) return;
     _inSegment = false;
     _silenceAccumMs = 0;
+    _speechAccumMs = 0;
+    _bargeInAccumMs = 0;
     final turnId = _currentTurnId;
     if (turnId != null) {
       _channel?.sink.add(jsonEncode({'type': 'speech_end', 'turn_id': turnId}));
@@ -350,5 +364,33 @@ class LiveVoiceSession {
     _currentTurnId = null;
     final elapsed = DateTime.now().millisecondsSinceEpoch - _segmentStartedAt;
     _dynamicSilenceMs = max(1400, min(2800, (elapsed * 0.28).round()));
+  }
+
+  Uint8List? _applyNoiseGate(Uint8List bytes) {
+    if (bytes.length < 2) return null;
+    final sampleCount = bytes.length ~/ 2;
+    final input = ByteData.sublistView(bytes, 0, sampleCount * 2);
+    var sumSquares = 0.0;
+    for (var i = 0; i < sampleCount; i++) {
+      final sample = input.getInt16(i * 2, Endian.little);
+      sumSquares += sample * sample;
+    }
+    final rms = sqrt(sumSquares / sampleCount);
+    if (rms <= 0) return null;
+    final db = 20 * log(rms / 32768.0) / ln10;
+    if (db < noiseGateDb) return null;
+
+    const sampleFloor = 320;
+    final output = Uint8List(sampleCount * 2);
+    final clean = ByteData.sublistView(output);
+    for (var i = 0; i < sampleCount; i++) {
+      final sample = input.getInt16(i * 2, Endian.little);
+      clean.setInt16(
+        i * 2,
+        sample.abs() < sampleFloor ? 0 : sample,
+        Endian.little,
+      );
+    }
+    return output;
   }
 }

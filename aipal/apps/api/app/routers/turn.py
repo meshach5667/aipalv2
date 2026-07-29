@@ -327,7 +327,7 @@ async def list_tts_voices(
 async def list_voice_profiles(
     user: User = Depends(get_current_user),
 ):
-    return {"profiles": voice_options(), "default": "calm_female"}
+    return {"profiles": voice_options(), "default": "default"}
 
 
 @router.get("/voice/capabilities")
@@ -335,29 +335,44 @@ async def voice_capabilities(
     user: User = Depends(get_current_user),
 ):
     settings = get_settings()
-    tts_provider = (settings.tts_provider or "edge").lower()
-    stt_provider = (settings.stt_provider or "whisper_stream").lower()
+    tts_provider = settings.effective_tts_provider
+    stt_provider = settings.effective_stt_provider
     realtime_provider = (settings.realtime_voice_provider or "").strip()
     return {
         "transport": settings.live_voice_transport,
         "live_voice_v2": settings.live_voice_v2,
         "stt": {
             "provider": stt_provider,
-            "model": settings.whisper_model if stt_provider == "whisper_stream" else stt_provider,
-            "beam_size": settings.whisper_beam_size,
-            "partial_interval_ms": settings.whisper_stream_partial_interval_ms,
+            "configured": (
+                bool(settings.effective_fish_api_key)
+                if stt_provider == "fish_audio"
+                else True
+            ),
+            "model": settings.whisper_model
+            if stt_provider == "whisper_stream"
+            else settings.effective_fish_asr_model,
+            "beam_size": settings.whisper_beam_size if stt_provider == "whisper_stream" else None,
+            "partial_interval_ms": settings.whisper_stream_partial_interval_ms
+            if stt_provider == "whisper_stream"
+            else None,
             "confidence_gate": {
                 "min_confidence": settings.stt_min_confidence,
                 "max_no_speech_probability": settings.stt_max_no_speech_probability,
                 "min_final_chars": settings.stt_min_final_chars,
             },
-            "streaming_partials": settings.live_voice_v2,
+            "streaming_partials": settings.live_voice_v2 and stt_provider == "whisper_stream",
             "automatic_language_detection": True,
         },
         "tts": {
             "provider": tts_provider,
+            "configured": (
+                bool(settings.effective_fish_api_key)
+                if tts_provider == "fish"
+                else True
+            ),
+            "model": settings.effective_fish_tts_model if tts_provider == "fish" else None,
             "streaming": True,
-            "distinct_voice_profiles": tts_provider == "edge" or tts_provider == "say",
+            "distinct_voice_profiles": tts_provider in {"edge", "fish", "say"},
             "fallback_safe": True,
         },
         "barge_in": {

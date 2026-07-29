@@ -1,7 +1,7 @@
 class AppConfig {
   static const _rawApiBase = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://aipal.onrender.com/api/v2',
+    defaultValue: 'http://127.0.0.1:8102/api/v2',
   );
   static final String apiBase = _normalizeApiBase(_rawApiBase);
 

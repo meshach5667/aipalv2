@@ -9,7 +9,9 @@ class ApiClient {
   ApiClient(this.token);
 
   static const _timeout = Duration(seconds: 12);
-  static const _audioTurnTimeout = Duration(seconds: 60);
+  static const _aiTurnTimeout = Duration(seconds: 75);
+  static const _audioTurnTimeout = Duration(seconds: 90);
+  static const _ttsTimeout = Duration(seconds: 45);
 
   final String? token;
 
@@ -23,6 +25,12 @@ class ApiClient {
 
   Future<http.Response> _post(Uri uri, {Object? body}) =>
       http.post(uri, headers: _headers, body: body).timeout(_timeout);
+
+  Future<http.Response> _postWithTimeout(
+    Uri uri, {
+    Object? body,
+    required Duration timeout,
+  }) => http.post(uri, headers: _headers, body: body).timeout(timeout);
 
   Future<http.Response> _put(Uri uri, {Object? body}) =>
       http.put(uri, headers: _headers, body: body).timeout(_timeout);
@@ -94,6 +102,11 @@ class ApiClient {
     String title, {
     String? notes,
     String? goalId,
+    DateTime? dueAt,
+    int? priority,
+    int? estimatedMinutes,
+    String? category,
+    int? parentTaskId,
   }) async {
     final r = await _post(
       Uri.parse('${AppConfig.apiBase}/tasks'),
@@ -101,9 +114,16 @@ class ApiClient {
         'title': title,
         if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
         if (goalId != null) 'goal_id': goalId,
-        'source': 'text',
+        if (dueAt != null) 'due_at': dueAt.toUtc().toIso8601String(),
+        if (priority != null) 'priority': priority,
+        if (estimatedMinutes != null) 'estimated_minutes': estimatedMinutes,
+        if (category != null && category.trim().isNotEmpty)
+          'category': category.trim(),
+        if (parentTaskId != null) 'parent_task_id': parentTaskId,
+        'source': 'manual',
       }),
     );
+    _throwIfFailed(r, 'Task creation failed');
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
@@ -384,8 +404,50 @@ class ApiClient {
   }
 
   Future<Map<String, dynamic>> getTaskDetail(String id) async {
-    final r = await _get(Uri.parse('${AppConfig.apiBase}/tasks/$id/detail'));
-    return jsonDecode(r.body) as Map<String, dynamic>;
+    if (int.tryParse(id) != null) {
+      final r = await _get(Uri.parse('${AppConfig.apiBase}/tasks/$id/detail'));
+      return jsonDecode(r.body) as Map<String, dynamic>;
+    }
+
+    final r = await _get(Uri.parse('${AppConfig.apiBase}/today-items/$id'));
+    final item = jsonDecode(r.body) as Map<String, dynamic>;
+    final taskId = item['task_id'];
+    if (taskId != null) {
+      final taskResponse = await _get(
+        Uri.parse('${AppConfig.apiBase}/tasks/$taskId/detail'),
+      );
+      return jsonDecode(taskResponse.body) as Map<String, dynamic>;
+    }
+    return {
+      'task': _todayItemAsTask(item),
+      'linked_goal': null,
+      'subtasks': <dynamic>[],
+    };
+  }
+
+  Map<String, dynamic> _todayItemAsTask(Map<String, dynamic> item) {
+    final metadata = item['metadata'];
+    return {
+      'id': item['id'],
+      'today_item_id': item['id'],
+      'is_today_item': true,
+      'title': item['title'],
+      'notes': item['description'],
+      'due_at': item['due_at'] ?? item['start_time'],
+      'status': item['status'],
+      'priority': item['priority'],
+      'source': item['source'],
+      'goal_id': item['goal_id'],
+      'category': item['type'],
+      'created_at': item['created_at'],
+      'updated_at': item['updated_at'],
+      'calendar_event_id': item['calendar_event_id'],
+      'reminder_id': item['reminder_id'],
+      'habit_id': item['habit_id'],
+      'reflection_id': item['reflection_id'],
+      'commitment_id': item['commitment_id'],
+      'metadata': metadata,
+    };
   }
 
   Future<void> reorderTasks(List<int> orderedIds) async {
@@ -431,12 +493,13 @@ class ApiClient {
     String text, {
     String? sessionId,
   }) async {
-    final r = await _post(
+    final r = await _postWithTimeout(
       Uri.parse('${AppConfig.apiBase}/turn/text'),
       body: jsonEncode({
         'text': text,
         if (sessionId != null) 'session_id': sessionId,
       }),
+      timeout: _aiTurnTimeout,
     );
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
@@ -447,7 +510,7 @@ class ApiClient {
     String source = 'text',
     Map<String, dynamic>? sourceContext,
   }) async {
-    final r = await _post(
+    final r = await _postWithTimeout(
       Uri.parse('${AppConfig.apiBase}/companion/turn'),
       body: jsonEncode({
         'message': message,
@@ -455,7 +518,9 @@ class ApiClient {
         'source': source,
         if (sourceContext != null) 'source_context': sourceContext,
       }),
+      timeout: _aiTurnTimeout,
     );
+    _throwIfFailed(r, 'Companion turn failed');
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
@@ -1036,7 +1101,7 @@ class ApiClient {
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>?> suggestDay({String? template}) async {
+  Future<Map<String, dynamic>> suggestDay({String? template}) async {
     final r = await _post(
       Uri.parse('${AppConfig.apiBase}/tasks/suggest-day'),
       body: jsonEncode({if (template != null) 'template': template}),
@@ -1044,8 +1109,7 @@ class ApiClient {
     if (r.statusCode >= 400) {
       throw Exception('Suggest day failed (${r.statusCode}): ${r.body}');
     }
-    final body = jsonDecode(r.body) as Map<String, dynamic>;
-    return body['plan_draft'] as Map<String, dynamic>?;
+    return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>?> fetchPlanDraft() async {
@@ -1105,9 +1169,10 @@ class ApiClient {
   }
 
   Future<Map<String, dynamic>> tts(String text, {String? voice}) async {
-    final r = await _post(
+    final r = await _postWithTimeout(
       Uri.parse('${AppConfig.apiBase}/turn/tts'),
       body: jsonEncode({'text': text, if (voice != null) 'voice': voice}),
+      timeout: _ttsTimeout,
     );
     return jsonDecode(r.body) as Map<String, dynamic>;
   }

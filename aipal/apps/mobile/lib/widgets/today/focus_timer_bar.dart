@@ -26,6 +26,12 @@ class FocusTimerBarState extends State<FocusTimerBar> {
   Timer? _timer;
   bool _paused = false;
 
+  // Yellow & Dark Bento Palette Tokens
+  static const Color primaryYellow = Color(0xFFFFD600);
+  static const Color onPrimaryDark = Color(0xFF221B00);
+  static const Color darkContainer = Color(0xFF1A1C1C);
+  static const Color surfaceContainer = Color(0xFFEEEEEE);
+
   @override
   void initState() {
     super.initState();
@@ -72,65 +78,72 @@ class FocusTimerBarState extends State<FocusTimerBar> {
       top: false,
       bottom: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(30),
+          borderRadius: BorderRadius.circular(28),
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.72),
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
+                color: Colors.white.withValues(alpha: 0.85),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  width: 1.5,
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF1A1F2C).withValues(alpha: 0.08),
-                    blurRadius: 36,
-                    offset: const Offset(0, 18),
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 28,
+                    offset: const Offset(0, 10),
                   ),
                 ],
               ),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Top Row: Timer Gauge & Details
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
+                      // Circular Indicator
                       SizedBox(
-                        width: 72,
-                        height: 72,
+                        width: 68,
+                        height: 68,
                         child: Stack(
                           alignment: Alignment.center,
                           children: [
                             SizedBox(
-                              width: 72,
-                              height: 72,
+                              width: 68,
+                              height: 68,
                               child: CircularProgressIndicator(
                                 value: completed,
-                                strokeWidth: 6,
+                                strokeWidth: 5.5,
                                 strokeCap: StrokeCap.round,
-                                backgroundColor: const Color(0xFFE3E2DF),
-                                color: Theme.of(context).colorScheme.primary,
+                                backgroundColor: surfaceContainer,
+                                color: primaryYellow,
                               ),
                             ),
                             Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(
-                                  Icons.timer_rounded,
-                                  size: 15,
-                                  color: Theme.of(context).colorScheme.primary,
+                                const Icon(
+                                  Icons.timer_outlined,
+                                  size: 14,
+                                  color: onPrimaryDark,
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
                                   _label,
-                                  style: TextStyle(
-                                    fontFamily: 'Manrope',
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w900,
-                                    fontFeatures: const [
+                                  style: const TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    fontFeatures: [
                                       FontFeature.tabularFigures(),
                                     ],
-                                    color: Theme.of(context).colorScheme.onSurface,
+                                    color: darkContainer,
                                   ),
                                 ),
                               ],
@@ -139,8 +152,9 @@ class FocusTimerBarState extends State<FocusTimerBar> {
                         ),
                       ),
 
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 14),
 
+                      // Status & Task Title
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -148,46 +162,60 @@ class FocusTimerBarState extends State<FocusTimerBar> {
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 10,
-                                vertical: 5,
+                                vertical: 4,
                               ),
                               decoration: BoxDecoration(
                                 color: _paused
-                                    ? const Color(0xFFF4F4F0)
-                                    : const Color(0xFFF4D9FF),
-                                borderRadius: BorderRadius.circular(999),
+                                    ? surfaceContainer
+                                    : primaryYellow.withValues(alpha: 0.25),
+                                borderRadius: BorderRadius.circular(20),
                               ),
-                              child: Text(
-                                _paused ? 'PAUSED' : 'FOCUS MODE',
-                                style: TextStyle(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 1.1,
-                                  color: _paused
-                                      ? const Color(0xFF575C6B)
-                                      : Theme.of(context).colorScheme.primary,
-                                ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: _paused
+                                          ? Colors.grey
+                                          : darkContainer,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _paused ? 'PAUSED' : 'FOCUS MODE',
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.8,
+                                      color: darkContainer,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            const SizedBox(height: 9),
+                            const SizedBox(height: 6),
                             Text(
                               widget.taskTitle,
-                              maxLines: 2,
+                              maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontFamily: 'Manrope',
-                                fontSize: 17,
-                                height: 1.25,
-                                fontWeight: FontWeight.w800,
-                                color: Theme.of(context).colorScheme.onSurface,
+                              style: const TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 15,
+                                height: 1.2,
+                                fontWeight: FontWeight.w700,
+                                color: darkContainer,
                               ),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 4),
                             Text(
                               '${(completed * 100).round()}% complete',
                               style: const TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF4B444D),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF5F5E5E),
                               ),
                             ),
                           ],
@@ -196,53 +224,63 @@ class FocusTimerBarState extends State<FocusTimerBar> {
                     ],
                   ),
 
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
 
+                  // Linear Progress Bar
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(10),
                     child: LinearProgressIndicator(
                       value: completed,
-                      minHeight: 6,
-                      backgroundColor: const Color(0xFFE3E2DF),
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        Theme.of(context).colorScheme.primary,
+                      minHeight: 5,
+                      backgroundColor: surfaceContainer,
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        primaryYellow,
                       ),
                     ),
                   ),
 
                   const SizedBox(height: 14),
 
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _FocusActionButton(
-                          icon: _paused
-                              ? Icons.play_arrow_rounded
-                              : Icons.pause_rounded,
-                          label: _paused ? 'Resume' : 'Pause',
-                          filled: true,
-                          onTap: () => setState(() => _paused = !_paused),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      _FocusIconButton(
-                        icon: Icons.add_rounded,
-                        tooltip: '+5 min',
-                        onTap: () => setState(() => _remaining += 300),
-                      ),
-                      const SizedBox(width: 8),
-                      _FocusIconButton(
-                        icon: Icons.check_rounded,
-                        tooltip: 'Complete',
-                        onTap: widget.onComplete,
-                      ),
-                      const SizedBox(width: 8),
-                      _FocusIconButton(
-                        icon: Icons.close_rounded,
-                        tooltip: 'Cancel',
-                        onTap: widget.onCancel,
-                      ),
-                    ],
+                  // Mobile Responsive Action Bar
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isCompact = constraints.maxWidth < 340;
+
+                      return Row(
+                        children: [
+                          // Main Pause/Resume Action Button
+                          Expanded(
+                            child: _FocusActionButton(
+                              icon: _paused
+                                  ? Icons.play_arrow_rounded
+                                  : Icons.pause_rounded,
+                              label: _paused ? 'Resume' : 'Pause',
+                              filled: true,
+                              onTap: () => setState(() => _paused = !_paused),
+                            ),
+                          ),
+                          SizedBox(width: isCompact ? 6 : 8),
+                          _FocusIconButton(
+                            icon: Icons.add_rounded,
+                            tooltip: '+5 min',
+                            onTap: () => setState(() => _remaining += 300),
+                          ),
+                          SizedBox(width: isCompact ? 6 : 8),
+                          _FocusIconButton(
+                            icon: Icons.check_rounded,
+                            tooltip: 'Complete',
+                            isAccent: true,
+                            onTap: widget.onComplete,
+                          ),
+                          SizedBox(width: isCompact ? 6 : 8),
+                          _FocusIconButton(
+                            icon: Icons.close_rounded,
+                            tooltip: 'Cancel',
+                            onTap: widget.onCancel,
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),
@@ -271,17 +309,20 @@ class _FocusActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return FilledButton.icon(
       onPressed: onTap,
-      icon: Icon(icon, size: 19),
+      icon: Icon(icon, size: 18),
       label: Text(label),
       style: FilledButton.styleFrom(
-        backgroundColor:
-            filled ? Theme.of(context).colorScheme.primary : const Color(0xFFF4F4F0),
-        foregroundColor: filled ? Colors.white : Theme.of(context).colorScheme.onSurface,
-        minimumSize: const Size.fromHeight(48),
-        shape: const StadiumBorder(),
+        backgroundColor: filled ? const Color(0xFFFFD600) : const Color(0xFFEEEEEE),
+        foregroundColor: const Color(0xFF221B00),
+        elevation: 0,
+        minimumSize: const Size.fromHeight(44),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
         textStyle: const TextStyle(
+          fontFamily: 'Inter',
           fontSize: 13.5,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
@@ -293,33 +334,38 @@ class _FocusIconButton extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onTap,
+    this.isAccent = false,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
+  final bool isAccent;
 
   @override
   Widget build(BuildContext context) {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: const Color(0xFFF8F7F3),
-        shape: const CircleBorder(),
+        color: isAccent
+            ? const Color(0xFFFFD600).withValues(alpha: 0.3)
+            : const Color(0xFFEEEEEE),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
         child: InkWell(
-          customBorder: const CircleBorder(),
+          borderRadius: BorderRadius.circular(14),
           onTap: onTap,
           child: Container(
-            width: 48,
-            height: 48,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFFE3E2DF)),
+              borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
               icon,
-              size: 21,
-              color: Theme.of(context).colorScheme.primary,
+              size: 20,
+              color: const Color(0xFF1A1C1C),
             ),
           ),
         ),

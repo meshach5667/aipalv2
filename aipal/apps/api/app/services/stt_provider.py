@@ -29,7 +29,11 @@ class StreamingSTT(Protocol):
 
 
 def get_streaming_stt(settings: Settings) -> StreamingSTT:
-    provider = (settings.stt_provider or "whisper_stream").lower()
+    provider = settings.effective_stt_provider
+    if provider == "fish_audio":
+        from .fish_audio_stt import FishAudioStreamingSTT
+
+        return FishAudioStreamingSTT(settings)
     if provider == "whisper_stream":
         from .whisper_streaming_stt import WhisperStreamingSTT
 

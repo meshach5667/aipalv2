@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import get_current_user
 from ..db import get_db
+from ..llm_provider import llm_ping, llm_status
 from ..memory import memory_delete_user
 from ..models import IntegrationToken, LiveSession, Task, User
 from ..schemas import ProfileResponse, ProfileUpdate, str_to_time, time_to_str
@@ -28,6 +29,16 @@ def user_to_profile(user: User) -> ProfileResponse:
 @router.get("/profile", response_model=ProfileResponse)
 async def get_profile(user: User = Depends(get_current_user)):
     return user_to_profile(user)
+
+
+@router.get("/diagnostics/llm")
+async def get_llm_diagnostics(user: User = Depends(get_current_user)):
+    return llm_status()
+
+
+@router.post("/diagnostics/llm/ping")
+async def ping_llm(user: User = Depends(get_current_user)):
+    return await llm_ping()
 
 
 @router.put("/profile", response_model=ProfileResponse)

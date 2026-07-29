@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse, Response
 from .config import get_settings
 from .db import async_session, engine, init_db
 from .jobs.notification_dispatcher import dispatch_due_notifications
+from .llm_provider import llm_status
 from .routers import (
     accountability,
     auth,
@@ -94,7 +95,8 @@ async def _prewarm_whisper() -> None:
     """Load faster-whisper at startup so first Live turn is not blocked on HF download."""
     if not settings.live_voice_v2:
         return
-    if (settings.stt_provider or "").lower() != "whisper_stream":
+    if settings.effective_stt_provider != "whisper_stream":
+        log.info("Skipping Whisper pre-warm; STT provider is %s", settings.effective_stt_provider)
         return
     try:
         from .stt import _get_model
@@ -130,9 +132,10 @@ async def _notification_dispatcher_loop() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    await _prewarm_whisper()
+    prewarm_task = asyncio.create_task(_prewarm_whisper())
     dispatcher_task = asyncio.create_task(_notification_dispatcher_loop())
     log.info("AIpal API v2 started")
+    log.info("LLM status: %s", llm_status())
     try:
         yield
     finally:
@@ -141,6 +144,11 @@ async def lifespan(app: FastAPI):
             await dispatcher_task
         except asyncio.CancelledError:
             pass
+    prewarm_task.cancel()
+    try:
+        await prewarm_task
+    except asyncio.CancelledError:
+        pass
     await engine.dispose()
 
 
