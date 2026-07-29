@@ -21,9 +21,9 @@ VOICE_STREAM_PROMPT_SUFFIX = (
 async def llm_chat(messages: list[dict[str, str]]) -> str:
     provider = settings.llm_provider.lower()
     try:
-        if provider in {"openai", "openai_compatible"} and settings.openai_api_key:
+        if provider in {"openai", "openai_compatible"}:
             return await _openai_chat(messages)
-        if provider == "deepseek" and settings.deepseek_api_key:
+        if provider == "deepseek":
             return await _deepseek_chat(messages)
         return await _ollama_chat(messages)
     except (httpx.HTTPError, OSError) as exc:
@@ -34,11 +34,11 @@ async def llm_chat(messages: list[dict[str, str]]) -> str:
 async def llm_chat_stream(messages: list[dict[str, str]]) -> AsyncIterator[str]:
     provider = settings.llm_provider.lower()
     try:
-        if provider in {"openai", "openai_compatible"} and settings.openai_api_key:
+        if provider in {"openai", "openai_compatible"}:
             async for chunk in _openai_chat_stream(messages):
                 yield chunk
             return
-        if provider == "deepseek" and settings.deepseek_api_key:
+        if provider == "deepseek":
             async for chunk in _deepseek_chat_stream(messages):
                 yield chunk
             return
@@ -50,10 +50,11 @@ async def llm_chat_stream(messages: list[dict[str, str]]) -> AsyncIterator[str]:
 
 
 async def _deepseek_chat(messages: list[dict[str, str]]) -> str:
+    headers = {"Authorization": f"Bearer {settings.deepseek_api_key}"} if settings.deepseek_api_key else {}
     async with httpx.AsyncClient(timeout=settings.deepseek_timeout_seconds) as client:
         resp = await client.post(
             "https://api.deepseek.com/chat/completions",
-            headers={"Authorization": f"Bearer {settings.deepseek_api_key}"},
+            headers=headers,
             json={
                 "model": "deepseek-chat",
                 "messages": _with_default_system(messages),
@@ -66,11 +67,12 @@ async def _deepseek_chat(messages: list[dict[str, str]]) -> str:
 
 
 async def _deepseek_chat_stream(messages: list[dict[str, str]]) -> AsyncIterator[str]:
+    headers = {"Authorization": f"Bearer {settings.deepseek_api_key}"} if settings.deepseek_api_key else {}
     async with httpx.AsyncClient(timeout=settings.deepseek_timeout_seconds) as client:
         async with client.stream(
             "POST",
             "https://api.deepseek.com/chat/completions",
-            headers={"Authorization": f"Bearer {settings.deepseek_api_key}"},
+            headers=headers,
             json={
                 "model": "deepseek-chat",
                 "messages": _with_default_system(messages, suffix=VOICE_STREAM_PROMPT_SUFFIX),
@@ -96,10 +98,11 @@ async def _deepseek_chat_stream(messages: list[dict[str, str]]) -> AsyncIterator
 
 
 async def _openai_chat(messages: list[dict[str, str]]) -> str:
+    headers = {"Authorization": f"Bearer {settings.openai_api_key}"} if settings.openai_api_key else {}
     async with httpx.AsyncClient(timeout=settings.openai_timeout_seconds) as client:
         resp = await client.post(
             f"{settings.openai_base_url.rstrip('/')}/chat/completions",
-            headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+            headers=headers,
             json={
                 "model": settings.openai_model,
                 "messages": _with_default_system(messages),
@@ -111,11 +114,12 @@ async def _openai_chat(messages: list[dict[str, str]]) -> str:
 
 
 async def _openai_chat_stream(messages: list[dict[str, str]]) -> AsyncIterator[str]:
+    headers = {"Authorization": f"Bearer {settings.openai_api_key}"} if settings.openai_api_key else {}
     async with httpx.AsyncClient(timeout=settings.openai_timeout_seconds) as client:
         async with client.stream(
             "POST",
             f"{settings.openai_base_url.rstrip('/')}/chat/completions",
-            headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+            headers=headers,
             json={
                 "model": settings.openai_model,
                 "messages": _with_default_system(messages, suffix=VOICE_STREAM_PROMPT_SUFFIX),
