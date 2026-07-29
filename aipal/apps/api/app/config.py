@@ -21,13 +21,13 @@ class Settings(BaseSettings):
     gunicorn_workers: int = 4
     gunicorn_bind: str = "0.0.0.0:8102"
 
-    llm_provider: str = "deepseek"
+    llm_provider: str = "openai"
     deepseek_api_key: str = ""
     deepseek_timeout_seconds: float = 120.0
     deepseek_max_tokens: int = 4096
     openai_api_key: str = ""
-    openai_base_url: str = "https://api.openai.com/v1"
-    openai_model: str = "gpt-4o-mini"
+    openai_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
+    openai_model: str = "gemini-2.0-flash"
     openai_timeout_seconds: float = 18.0
     openai_max_tokens: int = 220
     ollama_base_url: str = "http://127.0.0.1:11434"
