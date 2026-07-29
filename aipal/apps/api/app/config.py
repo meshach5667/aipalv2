@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     llm_provider: str = "deepseek"
     deepseek_api_key: str = ""
     deepseek_timeout_seconds: float = 120.0
-    deepseek_max_tokens: int = 8192
+    deepseek_max_tokens: int = 4096
     openai_api_key: str = ""
     openai_base_url: str = "https://api.openai.com/v1"
     openai_model: str = "gpt-4o-mini"
