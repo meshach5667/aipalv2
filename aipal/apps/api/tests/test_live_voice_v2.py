@@ -218,8 +218,11 @@ async def test_llm_chat_stream_deepseek_parses_sse():
             return None
 
     with patch("app.llm_provider.settings") as mock_settings:
-        mock_settings.llm_provider = "deepseek"
-        mock_settings.deepseek_api_key = "test-key"
+        mock_settings.llm_provider = "gemini"
+        mock_settings.gemini_api_key = "test-key"
+        mock_settings.gemini_base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+        mock_settings.gemini_model = "gemini-test"
+        mock_settings.gemini_max_tokens = 100
         with patch("app.llm_provider.httpx.AsyncClient", return_value=FakeClient()):
             chunks = []
             async for c in llm_chat_stream([{"role": "user", "content": "hi"}]):
@@ -228,7 +231,7 @@ async def test_llm_chat_stream_deepseek_parses_sse():
 
 
 @pytest.mark.asyncio
-async def test_llm_chat_openai_compatible_uses_configured_endpoint():
+async def test_llm_chat_gemini_compatible_uses_configured_endpoint():
     from app.llm_provider import llm_chat
 
     captured = {}
@@ -253,21 +256,22 @@ async def test_llm_chat_openai_compatible_uses_configured_endpoint():
             return None
 
     with patch("app.llm_provider.settings") as mock_settings:
-        mock_settings.llm_provider = "openai"
-        mock_settings.openai_api_key = "test-openai-key"
-        mock_settings.openai_base_url = "https://api.openai.com/v1"
-        mock_settings.openai_model = "gpt-test"
+        mock_settings.llm_provider = "gemini"
+        mock_settings.gemini_api_key = "test-gemini-key"
+        mock_settings.gemini_base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+        mock_settings.gemini_model = "gemini-test"
+        mock_settings.gemini_max_tokens = 100
         with patch("app.llm_provider.httpx.AsyncClient", return_value=FakeClient()):
             reply = await llm_chat([{"role": "user", "content": "hi"}])
 
     assert reply == "OpenAI hello"
-    assert captured["url"] == "https://api.openai.com/v1/chat/completions"
-    assert captured["kwargs"]["headers"]["Authorization"] == "Bearer test-openai-key"
-    assert captured["kwargs"]["json"]["model"] == "gpt-test"
+    assert captured["url"] == "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+    assert captured["kwargs"]["headers"]["Authorization"] == "Bearer test-gemini-key"
+    assert captured["kwargs"]["json"]["model"] == "gemini-test"
 
 
 @pytest.mark.asyncio
-async def test_llm_chat_stream_openai_compatible_parses_sse():
+async def test_llm_chat_stream_gemini_compatible_parses_sse():
     from app.llm_provider import llm_chat_stream
 
     lines = [
@@ -302,10 +306,11 @@ async def test_llm_chat_stream_openai_compatible_parses_sse():
             return None
 
     with patch("app.llm_provider.settings") as mock_settings:
-        mock_settings.llm_provider = "openai"
-        mock_settings.openai_api_key = "test-openai-key"
-        mock_settings.openai_base_url = "https://api.openai.com/v1"
-        mock_settings.openai_model = "gpt-test"
+        mock_settings.llm_provider = "gemini"
+        mock_settings.gemini_api_key = "test-gemini-key"
+        mock_settings.gemini_base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+        mock_settings.gemini_model = "gemini-test"
+        mock_settings.gemini_max_tokens = 100
         with patch("app.llm_provider.httpx.AsyncClient", return_value=FakeClient()):
             chunks = []
             async for c in llm_chat_stream([{"role": "user", "content": "hi"}]):

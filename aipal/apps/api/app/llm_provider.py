@@ -19,111 +19,56 @@ VOICE_STREAM_PROMPT_SUFFIX = (
 
 
 async def llm_chat(messages: list[dict[str, str]]) -> str:
-    provider = settings.llm_provider.lower()
+    if not settings.gemini_api_key or settings.gemini_api_key == "dummy":
+        return "I cannot connect right now because the Gemini API key is missing or invalid. Please check your configuration."
     try:
-        if provider in {"openai", "openai_compatible"}:
-            return await _openai_chat(messages)
-        if provider == "deepseek":
-            return await _deepseek_chat(messages)
-        return await _ollama_chat(messages)
+        return await _gemini_chat(messages)
     except (httpx.HTTPError, OSError) as exc:
         log.warning("LLM provider unavailable; using local fallback reply: %s", exc)
         return _fallback_reply(messages)
 
 
 async def llm_chat_stream(messages: list[dict[str, str]]) -> AsyncIterator[str]:
-    provider = settings.llm_provider.lower()
+    if not settings.gemini_api_key or settings.gemini_api_key == "dummy":
+        yield "I cannot connect right now because the Gemini API key is missing or invalid. Please check your configuration."
+        return
     try:
-        if provider in {"openai", "openai_compatible"}:
-            async for chunk in _openai_chat_stream(messages):
-                yield chunk
-            return
-        if provider == "deepseek":
-            async for chunk in _deepseek_chat_stream(messages):
-                yield chunk
-            return
-        text = await _ollama_chat(messages)
+        async for chunk in _gemini_chat_stream(messages):
+            yield chunk
+        return
     except (httpx.HTTPError, OSError) as exc:
         log.warning("Streaming LLM provider unavailable; using local fallback reply: %s", exc)
         text = _fallback_reply(messages)
     yield text
 
 
-async def _deepseek_chat(messages: list[dict[str, str]]) -> str:
-    headers = {"Authorization": f"Bearer {settings.deepseek_api_key}"} if settings.deepseek_api_key else {}
-    async with httpx.AsyncClient(timeout=settings.deepseek_timeout_seconds) as client:
+async def _gemini_chat(messages: list[dict[str, str]]) -> str:
+    headers = {"Authorization": f"Bearer {settings.gemini_api_key}"} if settings.gemini_api_key else {}
+    async with httpx.AsyncClient(timeout=settings.gemini_timeout_seconds) as client:
         resp = await client.post(
-            "https://api.deepseek.com/chat/completions",
+            f"{settings.gemini_base_url.rstrip('/')}/chat/completions",
             headers=headers,
             json={
-                "model": "deepseek-chat",
+                "model": settings.gemini_model,
                 "messages": _with_default_system(messages),
-                "max_tokens": settings.deepseek_max_tokens,
-                "temperature": 0.25,
+                "max_tokens": settings.gemini_max_tokens,
             },
         )
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"]
 
 
-async def _deepseek_chat_stream(messages: list[dict[str, str]]) -> AsyncIterator[str]:
-    headers = {"Authorization": f"Bearer {settings.deepseek_api_key}"} if settings.deepseek_api_key else {}
-    async with httpx.AsyncClient(timeout=settings.deepseek_timeout_seconds) as client:
+async def _gemini_chat_stream(messages: list[dict[str, str]]) -> AsyncIterator[str]:
+    headers = {"Authorization": f"Bearer {settings.gemini_api_key}"} if settings.gemini_api_key else {}
+    async with httpx.AsyncClient(timeout=settings.gemini_timeout_seconds) as client:
         async with client.stream(
             "POST",
-            "https://api.deepseek.com/chat/completions",
+            f"{settings.gemini_base_url.rstrip('/')}/chat/completions",
             headers=headers,
             json={
-                "model": "deepseek-chat",
+                "model": settings.gemini_model,
                 "messages": _with_default_system(messages, suffix=VOICE_STREAM_PROMPT_SUFFIX),
-                "max_tokens": settings.deepseek_max_tokens,
-                "temperature": 0.25,
-                "stream": True,
-            },
-        ) as resp:
-            resp.raise_for_status()
-            async for line in resp.aiter_lines():
-                if not line.startswith("data: "):
-                    continue
-                payload = line[6:].strip()
-                if payload == "[DONE]":
-                    break
-                try:
-                    data = json.loads(payload)
-                    delta = data["choices"][0].get("delta", {}).get("content")
-                    if delta:
-                        yield delta
-                except (json.JSONDecodeError, KeyError, IndexError):
-                    continue
-
-
-async def _openai_chat(messages: list[dict[str, str]]) -> str:
-    headers = {"Authorization": f"Bearer {settings.openai_api_key}"} if settings.openai_api_key else {}
-    async with httpx.AsyncClient(timeout=settings.openai_timeout_seconds) as client:
-        resp = await client.post(
-            f"{settings.openai_base_url.rstrip('/')}/chat/completions",
-            headers=headers,
-            json={
-                "model": settings.openai_model,
-                "messages": _with_default_system(messages),
-                "max_tokens": settings.openai_max_tokens,
-            },
-        )
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
-
-
-async def _openai_chat_stream(messages: list[dict[str, str]]) -> AsyncIterator[str]:
-    headers = {"Authorization": f"Bearer {settings.openai_api_key}"} if settings.openai_api_key else {}
-    async with httpx.AsyncClient(timeout=settings.openai_timeout_seconds) as client:
-        async with client.stream(
-            "POST",
-            f"{settings.openai_base_url.rstrip('/')}/chat/completions",
-            headers=headers,
-            json={
-                "model": settings.openai_model,
-                "messages": _with_default_system(messages, suffix=VOICE_STREAM_PROMPT_SUFFIX),
-                "max_tokens": settings.openai_max_tokens,
+                "max_tokens": settings.gemini_max_tokens,
                 "stream": True,
             },
         ) as resp:
@@ -151,24 +96,6 @@ async def llm_chat_json(messages: list[dict[str, str]]) -> dict:
     if m := re.search(r"\{[\s\S]*\}", text):
         text = m.group(0)
     return json.loads(text)
-
-
-async def _ollama_chat(messages: list[dict[str, str]]) -> str:
-    async with httpx.AsyncClient(timeout=settings.ollama_timeout_seconds) as client:
-        resp = await client.post(
-            f"{settings.ollama_base_url}/api/chat",
-            json={
-                "model": settings.ollama_model,
-                "messages": _with_default_system(messages),
-                "stream": False,
-                "options": {
-                    "num_predict": max(48, settings.ollama_num_predict),
-                    "temperature": settings.ollama_temperature,
-                },
-            },
-        )
-        resp.raise_for_status()
-        return resp.json()["message"]["content"]
 
 
 def _with_default_system(messages: list[dict[str, str]], *, suffix: str = "") -> list[dict[str, str]]:

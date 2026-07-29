@@ -8,8 +8,8 @@ from app.llm_provider import llm_chat
 
 
 @pytest.mark.asyncio
-async def test_llm_chat_deepseek_unit():
-    """Unit test for deepseek llm_chat using mocks."""
+async def test_llm_chat_gemini_unit():
+    """Unit test for gemini llm_chat using mocks."""
     messages = [{"role": "user", "content": "Hello!"}]
     from httpx import Request
     mock_response = Response(
@@ -23,11 +23,13 @@ async def test_llm_chat_deepseek_unit():
                 }
             ]
         },
-        request=Request("POST", "https://api.deepseek.com/chat/completions")
+        request=Request("POST", "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")
     )
 
-    with patch("app.llm_provider.settings.llm_provider", "deepseek"), \
-         patch("app.llm_provider.settings.deepseek_api_key", "fake_key"), \
+    with patch("app.llm_provider.settings.llm_provider", "gemini"), \
+         patch("app.llm_provider.settings.gemini_api_key", "fake_key"), \
+         patch("app.llm_provider.settings.gemini_base_url", "https://generativelanguage.googleapis.com/v1beta/openai"), \
+         patch("app.llm_provider.settings.gemini_model", "gemini-2.0-flash"), \
          patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
 
         mock_post.return_value = mock_response
@@ -37,18 +39,18 @@ async def test_llm_chat_deepseek_unit():
         assert reply == "Hi there!"
         mock_post.assert_called_once()
         args, kwargs = mock_post.call_args
-        assert args[0] == "https://api.deepseek.com/chat/completions"
+        assert args[0] == "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
         assert kwargs["headers"]["Authorization"] == "Bearer fake_key"
-        assert kwargs["json"]["model"] == "deepseek-chat"
+        assert kwargs["json"]["model"] == "gemini-2.0-flash"
 
-@pytest.mark.skipif("DEEPSEEK_API_KEY" not in os.environ, reason="Missing API key")
+@pytest.mark.skipif("GEMINI_API_KEY" not in os.environ, reason="Missing API key")
 @pytest.mark.asyncio
-async def test_llm_chat_deepseek_integration():
-    """Integration test that actually hits the deepseek API."""
+async def test_llm_chat_gemini_integration():
+    """Integration test that actually hits the gemini API."""
     messages = [{"role": "user", "content": "Return the exact word 'banana' and nothing else."}]
 
-    with patch("app.llm_provider.settings.llm_provider", "deepseek"), \
-         patch("app.llm_provider.settings.deepseek_api_key", os.environ.get("DEEPSEEK_API_KEY", "dummy")):
+    with patch("app.llm_provider.settings.llm_provider", "gemini"), \
+         patch("app.llm_provider.settings.gemini_api_key", os.environ.get("GEMINI_API_KEY", "dummy")):
 
         reply = await llm_chat(messages)
         assert "banana" in reply.lower()
@@ -56,9 +58,9 @@ async def test_llm_chat_deepseek_integration():
 from httpx import ASGITransport, AsyncClient
 from app.main import app
 
-@pytest.mark.skipif("DEEPSEEK_API_KEY" not in os.environ, reason="Missing API key")
+@pytest.mark.skipif("GEMINI_API_KEY" not in os.environ, reason="Missing API key")
 @pytest.mark.asyncio
-async def test_llm_chat_deepseek_system():
+async def test_llm_chat_gemini_system():
     """System test that uses the test client to hit a full endpoint."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         # Register and verify a user to get auth token
@@ -70,8 +72,8 @@ async def test_llm_chat_deepseek_system():
         headers = {"Authorization": f"Bearer {verify.json()['access_token']}"}
 
         # Issue a text turn request
-        with patch("app.llm_provider.settings.llm_provider", "deepseek"), \
-             patch("app.llm_provider.settings.deepseek_api_key", os.environ.get("DEEPSEEK_API_KEY", "dummy")):
+        with patch("app.llm_provider.settings.llm_provider", "gemini"), \
+             patch("app.llm_provider.settings.gemini_api_key", os.environ.get("GEMINI_API_KEY", "dummy")):
 
             response = await client.post(
                 "/api/v2/turn/text",
