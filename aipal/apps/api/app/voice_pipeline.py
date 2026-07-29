@@ -71,9 +71,20 @@ class TurnRateLimiter:
     def __init__(self, max_per_minute: int) -> None:
         self._max = max_per_minute
         self._hits: dict[str, deque[float]] = defaultdict(deque)
+        self._last_cleanup: float = time.monotonic()
 
     def allow(self, user_id: str) -> bool:
         now = time.monotonic()
+
+        if now - self._last_cleanup > 300:
+            self._last_cleanup = now
+            for uid in list(self._hits.keys()):
+                w = self._hits[uid]
+                while w and now - w[0] > 60:
+                    w.popleft()
+                if not w:
+                    del self._hits[uid]
+
         window = self._hits[user_id]
         while window and now - window[0] > 60:
             window.popleft()
