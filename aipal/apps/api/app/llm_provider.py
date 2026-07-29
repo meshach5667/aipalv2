@@ -172,9 +172,25 @@ async def _ollama_chat(messages: list[dict[str, str]]) -> str:
 
 
 def _with_default_system(messages: list[dict[str, str]], *, suffix: str = "") -> list[dict[str, str]]:
-    if any(message.get("role") == "system" for message in messages):
-        return messages
-    return [{"role": "system", "content": SYSTEM_PROMPT + suffix}, *messages]
+    has_system = False
+    new_messages = []
+    for msg in messages:
+        if msg.get("role") == "system":
+            has_system = True
+            if suffix:
+                # Append suffix to the first system message
+                new_msg = msg.copy()
+                new_msg["content"] = str(new_msg.get("content", "")) + suffix
+                new_messages.append(new_msg)
+                suffix = ""  # Only append to the first one
+            else:
+                new_messages.append(msg)
+        else:
+            new_messages.append(msg)
+
+    if not has_system:
+        return [{"role": "system", "content": SYSTEM_PROMPT + suffix}, *messages]
+    return new_messages
 
 
 def _fallback_reply(messages: list[dict[str, str]]) -> str:
