@@ -19,56 +19,71 @@ VOICE_STREAM_PROMPT_SUFFIX = (
 
 
 async def llm_chat(messages: list[dict[str, str]]) -> str:
-    if not settings.gemini_api_key or settings.gemini_api_key == "dummy":
+    current_settings = get_settings()
+    api_key = current_settings.gemini_api_key.strip() if current_settings.gemini_api_key else ""
+    if not api_key or api_key == "dummy":
         return "I cannot connect right now because the Gemini API key is missing or invalid. Please check your configuration."
     try:
-        return await _gemini_chat(messages)
+        return await _gemini_chat(messages, api_key, current_settings)
+    except httpx.HTTPStatusError as exc:
+        log.warning("LLM HTTPStatusError: %s - %s", exc, exc.response.text)
+        if exc.response.status_code in (400, 401, 403, 404):
+            return "I cannot connect right now because the Gemini API key is invalid or the model is incorrect. Please check your configuration."
+        return _fallback_reply(messages)
     except (httpx.HTTPError, OSError) as exc:
         log.warning("LLM provider unavailable; using local fallback reply: %s", exc)
         return _fallback_reply(messages)
 
 
 async def llm_chat_stream(messages: list[dict[str, str]]) -> AsyncIterator[str]:
-    if not settings.gemini_api_key or settings.gemini_api_key == "dummy":
+    current_settings = get_settings()
+    api_key = current_settings.gemini_api_key.strip() if current_settings.gemini_api_key else ""
+    if not api_key or api_key == "dummy":
         yield "I cannot connect right now because the Gemini API key is missing or invalid. Please check your configuration."
         return
     try:
-        async for chunk in _gemini_chat_stream(messages):
+        async for chunk in _gemini_chat_stream(messages, api_key, current_settings):
             yield chunk
         return
+    except httpx.HTTPStatusError as exc:
+        log.warning("Streaming LLM HTTPStatusError: %s", exc)
+        if exc.response.status_code in (400, 401, 403, 404):
+            yield "I cannot connect right now because the Gemini API key is invalid or the model is incorrect. Please check your configuration."
+            return
+        text = _fallback_reply(messages)
     except (httpx.HTTPError, OSError) as exc:
         log.warning("Streaming LLM provider unavailable; using local fallback reply: %s", exc)
         text = _fallback_reply(messages)
     yield text
 
 
-async def _gemini_chat(messages: list[dict[str, str]]) -> str:
-    headers = {"Authorization": f"Bearer {settings.gemini_api_key}"} if settings.gemini_api_key else {}
-    async with httpx.AsyncClient(timeout=settings.gemini_timeout_seconds) as client:
+async def _gemini_chat(messages: list[dict[str, str]], api_key: str, current_settings) -> str:
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    async with httpx.AsyncClient(timeout=current_settings.gemini_timeout_seconds) as client:
         resp = await client.post(
-            f"{settings.gemini_base_url.rstrip('/')}/chat/completions",
+            f"{current_settings.gemini_base_url.rstrip('/')}/chat/completions",
             headers=headers,
             json={
-                "model": settings.gemini_model,
+                "model": current_settings.gemini_model,
                 "messages": _with_default_system(messages),
-                "max_tokens": settings.gemini_max_tokens,
+                "max_tokens": current_settings.gemini_max_tokens,
             },
         )
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"]
 
 
-async def _gemini_chat_stream(messages: list[dict[str, str]]) -> AsyncIterator[str]:
-    headers = {"Authorization": f"Bearer {settings.gemini_api_key}"} if settings.gemini_api_key else {}
-    async with httpx.AsyncClient(timeout=settings.gemini_timeout_seconds) as client:
+async def _gemini_chat_stream(messages: list[dict[str, str]], api_key: str, current_settings) -> AsyncIterator[str]:
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    async with httpx.AsyncClient(timeout=current_settings.gemini_timeout_seconds) as client:
         async with client.stream(
             "POST",
-            f"{settings.gemini_base_url.rstrip('/')}/chat/completions",
+            f"{current_settings.gemini_base_url.rstrip('/')}/chat/completions",
             headers=headers,
             json={
-                "model": settings.gemini_model,
+                "model": current_settings.gemini_model,
                 "messages": _with_default_system(messages, suffix=VOICE_STREAM_PROMPT_SUFFIX),
-                "max_tokens": settings.gemini_max_tokens,
+                "max_tokens": current_settings.gemini_max_tokens,
                 "stream": True,
             },
         ) as resp:

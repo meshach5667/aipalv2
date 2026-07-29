@@ -217,7 +217,10 @@ async def test_llm_chat_stream_deepseek_parses_sse():
         async def __aexit__(self, *args):
             return None
 
-    with patch("app.llm_provider.settings") as mock_settings:
+
+    from app.config import Settings
+    mock_settings = Settings()
+    with patch("app.llm_provider.get_settings", return_value=mock_settings):
         mock_settings.llm_provider = "gemini"
         mock_settings.gemini_api_key = "test-key"
         mock_settings.gemini_base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
@@ -255,7 +258,10 @@ async def test_llm_chat_gemini_compatible_uses_configured_endpoint():
         async def __aexit__(self, *args):
             return None
 
-    with patch("app.llm_provider.settings") as mock_settings:
+
+    from app.config import Settings
+    mock_settings = Settings()
+    with patch("app.llm_provider.get_settings", return_value=mock_settings):
         mock_settings.llm_provider = "gemini"
         mock_settings.gemini_api_key = "test-gemini-key"
         mock_settings.gemini_base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
@@ -305,7 +311,10 @@ async def test_llm_chat_stream_gemini_compatible_parses_sse():
         async def __aexit__(self, *args):
             return None
 
-    with patch("app.llm_provider.settings") as mock_settings:
+
+    from app.config import Settings
+    mock_settings = Settings()
+    with patch("app.llm_provider.get_settings", return_value=mock_settings):
         mock_settings.llm_provider = "gemini"
         mock_settings.gemini_api_key = "test-gemini-key"
         mock_settings.gemini_base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
