@@ -1,0 +1,73 @@
+name: API CI
+
+on:
+  push:
+    paths: ['apps/api/**', '.github/workflows/api-ci.yml']
+  pull_request:
+    paths: ['apps/api/**']
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          cd apps/api
+          python -m pip install --upgrade 'pip>=26.1.2' 'setuptools>=83' wheel
+          python -m pip install -r requirements.txt
+          python -m pip check
+          python -m pip install pip-audit
+          pip-audit --cache-dir /tmp/aipal-pip-audit --local --progress-spinner off
+      - name: Ruff
+        run: pip install ruff && ruff check apps/api/app apps/api/tests
+      - name: Compile
+        run: python -m compileall -q apps/api/app apps/api/tests
+      - name: Deterministic quality gate
+        run: |
+          cd apps/api
+          pytest -q
+
+  postgres-quality:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: aipal
+          POSTGRES_PASSWORD: aipal_test
+          POSTGRES_DB: aipal_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aipal -d aipal_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://aipal:aipal_test@127.0.0.1:5432/aipal_test
+      RUN_POSTGRES_PHASE5_TESTS: "1"
+      EMBEDDING_PROVIDER: deterministic
+      JWT_SECRET: phase10-ci-secret-at-least-32-bytes
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          cd apps/api
+          python -m pip install --upgrade 'pip>=26.1.2' 'setuptools>=83' wheel
+          python -m pip install -r requirements.txt
+          python -m pip check
+      - name: Apply production migrations
+        run: |
+          cd apps/api
+          alembic upgrade head
+      - name: PostgreSQL pgvector quality gate
+        run: |
+          cd apps/api
+          pytest -q tests/test_memory_manager_phase5_postgres.py

@@ -1,0 +1,17 @@
+name: Deploy API
+
+on:
+  push:
+    tags: ['api/*']
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy via Ansible
+        run: |
+          echo "Configure ANSIBLE_HOST_KEY_CHECKING and secrets in repo settings"
+          echo "ansible-playbook -i infra/inventory.ini infra/playbooks/deploy-v2.yml"
+        continue-on-error: true

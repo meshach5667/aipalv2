@@ -1,0 +1,64 @@
+name: Bug report
+description: Report a bug or unexpected behavior in AiPal
+title: "[bug]: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing AiPal. Please include device info and build number from **Settings**.
+  - type: input
+    id: version
+    attributes:
+      label: App version (Settings)
+      placeholder: "e.g. 2.4.0 (18)"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and OS
+      placeholder: "e.g. Pixel 8, Android 14"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - voice / Live
+        - wake word (Hi Pal)
+        - Today / tasks
+        - notifications / nudges
+        - login / onboarding
+        - crash / freeze
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Companion
+        2. Say "Hi Pal"
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or logs
+      description: Drag images here or paste links
